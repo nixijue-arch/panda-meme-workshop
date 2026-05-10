@@ -44,19 +44,22 @@ type Bbox = [number, number, number, number]; // [x1, y1, x2, y2]
 
 const _bboxCache = new Map<string, Bbox>();
 
-// 检测 panda PNG 内 alpha>50 像素的 bounding box（去除 whitespace padding）
-// cache by src — 每个 panda 算一次（~50-200ms 取决于 native 分辨率）
-function getPandaContentBbox(panda: HTMLImageElement): Bbox {
-  const cached = _bboxCache.get(panda.src);
+// 检测 PNG 内 alpha>thresh 像素的 bounding box
+// 共用给 panda（去 whitespace padding）和 face（找五官 content bbox 当 content_center）
+// 借鉴 PandaHead build_assets.py 的 detect_content_center 思路：用户手截 face 常 crop 不居中，
+// 必须算实际像素聚类中心而不是几何中心，否则五官会偏移
+function getContentBbox(img: HTMLImageElement, alphaThresh = 50): Bbox {
+  const key = `${img.src}|${alphaThresh}`;
+  const cached = _bboxCache.get(key);
   if (cached) return cached;
-  const W = panda.naturalWidth;
-  const H = panda.naturalHeight;
+  const W = img.naturalWidth;
+  const H = img.naturalHeight;
   const c = document.createElement('canvas');
   c.width = W;
   c.height = H;
   const ctx = c.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('canvas 2d ctx unavailable');
-  ctx.drawImage(panda, 0, 0);
+  ctx.drawImage(img, 0, 0);
   const data = ctx.getImageData(0, 0, W, H).data;
   let x1 = W;
   let y1 = H;
@@ -66,7 +69,7 @@ function getPandaContentBbox(panda: HTMLImageElement): Bbox {
     const rowBase = y * W * 4;
     for (let x = 0; x < W; x++) {
       const a = data[rowBase + x * 4 + 3];
-      if (a > 50) {
+      if (a > alphaThresh) {
         if (x < x1) x1 = x;
         if (y < y1) y1 = y;
         if (x > x2) x2 = x;
@@ -74,9 +77,8 @@ function getPandaContentBbox(panda: HTMLImageElement): Bbox {
       }
     }
   }
-  const bbox: Bbox =
-    x2 < 0 ? [0, 0, W, H] : [x1, y1, x2 + 1, y2 + 1];
-  _bboxCache.set(panda.src, bbox);
+  const bbox: Bbox = x2 < 0 ? [0, 0, W, H] : [x1, y1, x2 + 1, y2 + 1];
+  _bboxCache.set(key, bbox);
   return bbox;
 }
 
@@ -135,7 +137,7 @@ export function composeMemeCanvas(opts: ComposeOpts): HTMLCanvasElement {
   const { panda, face, faceOffset, rotation = 0, flipX = false, size = 1024 } = opts;
 
   // 1. 检测 panda 实际内容 bbox（去 whitespace）
-  const bbox = getPandaContentBbox(panda);
+  const bbox = getContentBbox(panda);
   const [bx1, by1, bx2, by2] = bbox;
   const BW = bx2 - bx1;
   const BH = by2 - by1;
@@ -177,7 +179,18 @@ export function composeMemeCanvas(opts: ComposeOpts): HTMLCanvasElement {
   const fow = nfw * outScale;
   const foh = nfh * outScale;
 
-  // 5. face 画到临时 canvas (rotation/flip 围绕 face 中心)
+  // 5. face 画到临时 canvas (rotation/flip 围绕 face content 中心)
+  //
+  // 关键 SOP（feedback_engineering.md "Face content_center 对齐"）：
+  //   pmw face PNG 经 flood-fill 透明化后，PNG 整体尺寸含大量透明 padding
+  //   → 用 face.naturalWidth/Height 算 scale 五官只占 fow×foh 的小子区域 → 视觉上太小
+  //   → 用几何中心对齐五官也会偏移
+  // 修法（仿 PandaHead drawFaceLayer + content_center 预存机制的 runtime 版）：
+  //   a) 算 face content bbox (alpha>50 边界) — 五官实际占的区域
+  //   b) scale = min(fow/contentW, foh/contentH) * FACE_FILL → 五官填满 faceOffset
+  //   c) content bbox 中心代替几何中心做 drawImage 偏移 → 五官居中
+  // FACE_FILL = 0.95 留 5% margin（已有 ellipse mask 边缘平滑，比 PandaHead 0.92 紧一点）
+  const FACE_FILL = 0.95;
   const fc = document.createElement('canvas');
   fc.width = Wout;
   fc.height = Hout;
@@ -188,15 +201,22 @@ export function composeMemeCanvas(opts: ComposeOpts): HTMLCanvasElement {
 
   const FW = face.naturalWidth;
   const FH = face.naturalHeight;
-  const faceScale = Math.min(fow / FW, foh / FH);
+  const faceBbox = getContentBbox(face);
+  const fcw = Math.max(1, faceBbox[2] - faceBbox[0]); // face content 实际宽
+  const fch = Math.max(1, faceBbox[3] - faceBbox[1]); // face content 实际高
+  const faceScale = Math.min(fow / fcw, foh / fch) * FACE_FILL;
   const drawFw = FW * faceScale;
   const drawFh = FH * faceScale;
+  // content center 在缩放后 PNG 坐标系里
+  const ccX = ((faceBbox[0] + faceBbox[2]) / 2) * faceScale;
+  const ccY = ((faceBbox[1] + faceBbox[3]) / 2) * faceScale;
 
   fctx.save();
   fctx.translate(fox + fow / 2, foy + foh / 2);
   if (rotation) fctx.rotate((rotation * Math.PI) / 180);
   if (flipX) fctx.scale(-1, 1);
-  fctx.drawImage(face, -drawFw / 2, -drawFh / 2, drawFw, drawFh);
+  // 用 content center 偏移而不是几何中心 — 把五官中心对齐到 anchor 中心
+  fctx.drawImage(face, -ccX, -ccY, drawFw, drawFh);
   fctx.restore();
 
   // 6. 双 mask 裁 face：
