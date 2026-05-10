@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMeme } from '@/context/MemeContext';
-import { PANDA_HEADS, FACES, type Material } from '@/data/materials';
+import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, type Material } from '@/data/materials';
 import { pickRandomText, RANDOM_TEXTS_ZH, RANDOM_TEXTS_EN } from '@/data/quickModeTexts';
 import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
 import { copyImageToClipboard, downloadImage } from '@/lib/exportImage';

@@ -120,3 +120,15 @@ PANDA_HEADS.forEach(p => { pandaOffsetMap[p.id] = p.faceOffset; });
 export function getPandaFaceOffset(pandaId: string): { x: number; y: number; w: number; h: number } {
   return pandaOffsetMap[pandaId] || defaultOffset;
 }
+
+// ===== PandaHead 贡献的 46 shell + 65 face (来源 https://pandahead.fun) =====
+import { PANDAHEAD_PANDAS } from './panda-pandahead';
+import { PANDAHEAD_FACES } from './face-pandahead';
+
+/** 完整 panda body 池：原 24 + PandaHead 贡献 46 = 70 */
+export const ALL_PANDAS: Material[] = [...PANDA_HEADS, ...PANDAHEAD_PANDAS];
+/** 完整 face 池：原 67 + PandaHead 贡献 65 = 132 */
+export const ALL_FACES: Material[] = [...FACES, ...PANDAHEAD_FACES];
+
+// 把 PandaHead panda 的 faceOffset 也注入 lookup map
+PANDAHEAD_PANDAS.forEach(p => { pandaOffsetMap[p.id] = p.faceOffset; });

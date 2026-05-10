@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMeme } from '@/context/MemeContext';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import { PANDA_HEADS, FACES, getPandaFaceOffset } from '@/data/materials';
+import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, getPandaFaceOffset } from '@/data/materials';
 import type { ImageElement, MemeElement } from '@/context/MemeContext';
 import { X, Search } from 'lucide-react';
 import type { Material } from '@/data/materials';
