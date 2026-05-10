@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMeme } from '@/context/MemeContext';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { ImageElement, TextElement, MemeElement } from '@/context/MemeContext';
@@ -323,6 +323,22 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
     } catch (err) { console.error('Preview failed:', err); }
     if (prevSelected) dispatch({ type: 'SELECT_ELEMENT', id: prevSelected });
   }, [canvasRef, state.selectedId, dispatch]);
+
+  // 自动刷新预览 — elements 变化（随机生成 / 切素材 / 加 text）后 debounce 600ms 重生成预览
+  // 之前是手动按钮触发，user 反馈"随机生成时预览不跟上"
+  const elementsKey = state.elements.map(e => e.id + ':' + (e as ImageElement).src + ':' + (e.type === 'text' ? (e as TextElement).text : '')).join('|');
+  const prevKeyRef = useRef('');
+  useEffect(() => {
+    if (state.elements.length === 0) {
+      if (previewUrl) setPreviewUrl('');
+      return;
+    }
+    if (elementsKey === prevKeyRef.current) return;
+    prevKeyRef.current = elementsKey;
+    const t = setTimeout(() => { handleRefreshPreview(); }, 600);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elementsKey]);
 
   const selectedElement = state.selectedId ? state.elements.find(e => e.id === state.selectedId) : undefined;
 

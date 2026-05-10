@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMeme } from '@/context/MemeContext';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, getPandaFaceOffset } from '@/data/materials';
+import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, getLivePandaFaceOffset } from '@/data/materials';
+import { calcEditorFaceLayout } from '@/lib/composeMeme';
 import type { ImageElement, MemeElement } from '@/context/MemeContext';
 import { X, Search } from 'lucide-react';
 import type { Material } from '@/data/materials';
@@ -48,25 +49,36 @@ export function LeftSidebar() {
   const filteredPandas = filterMaterials(PANDA_HEADS, pandaSearch, lang);
   const filteredFaces = filterMaterials(FACES, faceSearch, lang);
 
-  const handleAddPandaHead = (src: string, id: string) => {
-    state.elements.filter(isPanda).forEach(e => {
-      dispatch({ type: 'REMOVE_ELEMENT', id: e.id });
-    });
-    setTimeout(() => {
+  // 切 panda — 同时让现有 face 跟着重新对齐到新 panda 的 anchor
+  const handleAddPandaHead = async (src: string, id: string) => {
+    const currentFace = state.elements.find(isFace) as ImageElement | undefined;
+    state.elements.filter(isPanda).forEach(e => dispatch({ type: 'REMOVE_ELEMENT', id: e.id }));
+    setTimeout(async () => {
       const element: ImageElement = {
         id: generateId(), type: 'image', src, name: id,
         x: 75, y: 50, width: 350, height: 350,
         rotation: 0, opacity: 1, zIndex: 0, flipX: false,
       };
       dispatch({ type: 'ADD_ELEMENT', element });
+      // 如果原有 face，按新 panda 的 anchor 重新定位 face — 切姿势/表情自动对齐
+      if (currentFace) {
+        const newPanda = PANDA_HEADS.find(p => p.id === id);
+        if (newPanda) {
+          const layout = await calcEditorFaceLayout({
+            pandaSrc: newPanda.src,
+            faceSrc: currentFace.src,
+            faceOffset350: getLivePandaFaceOffset(newPanda),
+          });
+          dispatch({ type: 'UPDATE_ELEMENT', id: currentFace.id, updates: { x: layout.x, y: layout.y, width: layout.width, height: layout.height } });
+        }
+      }
     }, 0);
     if (isMobile) setSheetOpen(false);
   };
 
-  const handleAddFace = (src: string, id: string) => {
-    state.elements.filter(isFace).forEach(e => {
-      dispatch({ type: 'REMOVE_ELEMENT', id: e.id });
-    });
+  // 切 face — 用 calcEditorFaceLayout 按 panda anchor 算位置（content_center 对齐）
+  const handleAddFace = async (src: string, id: string) => {
+    state.elements.filter(isFace).forEach(e => dispatch({ type: 'REMOVE_ELEMENT', id: e.id }));
     const currentPanda = state.elements.find(isPanda) as ImageElement | undefined;
     if (!currentPanda) {
       const pandaElement: ImageElement = {
@@ -77,11 +89,18 @@ export function LeftSidebar() {
       dispatch({ type: 'ADD_ELEMENT', element: pandaElement });
     }
     const pandaId = currentPanda?.name ?? 'panda-head';
-    const offset = getPandaFaceOffset(pandaId);
+    const pandaInPool = PANDA_HEADS.find(p => p.id === pandaId);
+    const layout = pandaInPool
+      ? await calcEditorFaceLayout({
+          pandaSrc: pandaInPool.src,
+          faceSrc: src,
+          faceOffset350: getLivePandaFaceOffset(pandaInPool),
+        })
+      : { x: 100, y: 70, width: 250, height: 250 };
     setTimeout(() => {
       const faceElement: ImageElement = {
         id: generateId(), type: 'image', src, name: id,
-        x: offset.x, y: offset.y, width: offset.w, height: offset.h,
+        x: layout.x, y: layout.y, width: layout.width, height: layout.height,
         rotation: 0, opacity: 1, zIndex: 1, flipX: false,
       };
       dispatch({ type: 'ADD_ELEMENT', element: faceElement });
