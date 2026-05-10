@@ -18,7 +18,17 @@ export type Page = 'quick' | 'editor' | 'collection' | 'museum' | 'about' | 'cal
 function App() {
   const canvasRef = useRef<HTMLDivElement>(null);
   // 默认 'editor' 不破坏既有用户；Header 把 ⚡ Quick 排第一位让新人先看到
-  const [page, setPage] = useState<Page>('editor');
+  // DEV mode 支持 URL ?page=calibrate 直接跳校准页（dev-calibrate.bat 用）
+  const [page, setPage] = useState<Page>(() => {
+    if (import.meta.env.DEV) {
+      const url = new URLSearchParams(window.location.search);
+      const p = url.get('page');
+      if (p === 'calibrate' || p === 'quick' || p === 'collection' || p === 'editor' || p === 'museum' || p === 'about') {
+        return p as Page;
+      }
+    }
+    return 'editor';
+  });
 
   return (
     <MemeProvider>
