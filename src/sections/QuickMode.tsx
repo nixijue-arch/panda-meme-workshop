@@ -195,18 +195,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
     }, 30);
   }, [dispatch, generateId, panda, face, text, faceRotation, faceFlipX, fontStack, onOpenEditor]);
 
-  // 键盘快捷键
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.key === 'r' || e.key === 'R') onRandomize();
-      if (e.key === 'c' || e.key === 'C') onCopy();
-      if (e.key === 'd' || e.key === 'D') onDownload();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onRandomize, onCopy, onDownload]);
+  // (键盘快捷键 R/C/D 已删 — 用户反馈干扰 form 输入和浏览器原生快捷键)
 
   // (滚轮调 face rotation 已删 — 用户反馈页面滚轮误触干扰，改为只能拖圆点旋转)
 
@@ -247,10 +236,10 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
 
       {/* Action buttons */}
       <div className="quickmode-actions">
-        <button onClick={onCopy} className="qm-btn qm-btn-primary" title="C">
+        <button onClick={onCopy} className="qm-btn qm-btn-primary">
           <Copy size={14} /> {t('quickCopy')}
         </button>
-        <button onClick={onDownload} className="qm-btn" title="D">
+        <button onClick={onDownload} className="qm-btn">
           <Download size={14} /> {t('quickDownload')}
         </button>
         <div style={{ position: 'relative' }}>
@@ -268,7 +257,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
           )}
         </div>
         <span className="qm-divider" />
-        <button onClick={onRandomize} className="qm-btn qm-btn-accent" title="R">
+        <button onClick={onRandomize} className="qm-btn qm-btn-accent">
           <Wand2 size={14} /> {t('quickRandom')}
         </button>
         <button onClick={onToEditor} className="qm-btn qm-btn-ghost">
