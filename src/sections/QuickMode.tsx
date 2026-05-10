@@ -252,13 +252,8 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
               width: panda.faceOffset.w,
               height: panda.faceOffset.h,
               transform: faceTransform,
-              // CSS mask 限 face 在 panda 白脸区轮廓内显示（不超 shell + 不遮 panda 黑廓白边）
-              maskImage: `url("${panda.src.replace(/\.png$/, '-facemask.png')}")`,
-              WebkitMaskImage: `url("${panda.src.replace(/\.png$/, '-facemask.png')}")`,
-              maskSize: '100% 100%',
-              WebkitMaskSize: '100% 100%',
-              maskRepeat: 'no-repeat',
-              WebkitMaskRepeat: 'no-repeat',
+              // face PNG 已透明化（padding alpha=0 by make_face_transparent.py），无需 mask
+              objectFit: 'contain',
             }}
           />
           {text && (

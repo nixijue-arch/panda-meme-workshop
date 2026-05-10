@@ -327,15 +327,7 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
         <img
           src={face.src} alt={face.id} draggable={false}
           className="draft-face-img"
-          style={{
-            ...faceStyle,
-            maskImage: `url("${panda.src.replace(/\.png$/, '-facemask.png')}")`,
-            WebkitMaskImage: `url("${panda.src.replace(/\.png$/, '-facemask.png')}")`,
-            maskSize: '100% 100%',
-            WebkitMaskSize: '100% 100%',
-            maskRepeat: 'no-repeat',
-            WebkitMaskRepeat: 'no-repeat',
-          }}
+          style={{ ...faceStyle, objectFit: 'contain' }}
         />
         {fav.text && <div className="draft-caption">{fav.text}</div>}
       </div>
