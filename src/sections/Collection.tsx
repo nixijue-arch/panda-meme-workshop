@@ -7,6 +7,8 @@ import { useMeme } from '@/context/MemeContext';
 import { ALL_PANDAS, ALL_FACES, getPandaFaceOffset } from '@/data/materials';
 import { useQuickFavs, type QuickFav } from '@/hooks/useQuickFavs';
 import { captureNode, copyImageToClipboard, downloadImage } from '@/lib/exportImage';
+import { composeMeme } from '@/lib/composeMeme';
+import { PandaCanvas } from '@/components/PandaCanvas';
 import {
   FolderOpen, Copy, Download, Trash2, ArrowRight, Sparkles, Edit2, Check, X,
   Package, CheckSquare, Square,
@@ -66,23 +68,27 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
     try {
       const zip = new JSZip();
       // 离屏渲染容器：每张草图 render → captureNode → 加进 zip
+      // 用 composeMeme 预合成 panda+face data URL（含白色 mask 裁切），再嵌入 DOM 让 captureNode 加上 caption
       const container = offscreenContainerRef.current;
       for (let i = 0; i < itemsToPack.length; i++) {
         const fav = itemsToPack[i];
         const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
         const face = ALL_FACES.find((f) => f.id === fav.faceId);
         if (!panda || !face) continue;
-        // 创建临时 preview node
+        const composedDataUrl = await composeMeme({
+          pandaSrc: panda.src,
+          faceSrc: face.src,
+          faceOffset: panda.faceOffset,
+          size: 1024,
+        });
         const node = document.createElement('div');
         node.style.cssText = 'position:absolute;width:400px;height:480px;background:#fff;left:-99999px;top:0;';
         node.innerHTML = `
-          <img src="${panda.src}" style="position:absolute;left:25px;top:25px;width:350px;height:350px;object-fit:contain;" crossorigin="anonymous" />
-          <img src="${face.src}" style="position:absolute;left:${25 + panda.faceOffset.x}px;top:${25 + panda.faceOffset.y}px;width:${panda.faceOffset.w}px;height:${panda.faceOffset.h}px;object-fit:contain;" crossorigin="anonymous" />
+          <img src="${composedDataUrl}" style="position:absolute;left:25px;top:25px;width:350px;height:350px;object-fit:contain;" />
           ${fav.text ? `<div style="position:absolute;left:0;right:0;bottom:18px;text-align:center;font-size:32px;font-weight:700;color:#000;padding:0 16px;line-height:1.2;font-family:${fav.fontFamily || 'sans-serif'};">${fav.text}</div>` : ''}
         `;
         container.appendChild(node);
-        // 等图片加载（简单 await frame + 100ms）
-        await new Promise((r) => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 80)); // data URL 已就绪，仅等 layout
         const blob = await captureNode(node);
         const safeName = (fav.name || fav.text || `panda-${i + 1}`).replace(/[^\w一-龥-]/g, '_').slice(0, 40);
         zip.file(`${String(i + 1).padStart(2, '0')}-${safeName}.png`, blob);
@@ -276,14 +282,6 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
     );
   }
 
-  const SCALE = 200 / 350;
-  const faceStyle = {
-    left: Math.round(panda.faceOffset.x * SCALE),
-    top: Math.round(panda.faceOffset.y * SCALE),
-    width: Math.round(panda.faceOffset.w * SCALE),
-    height: Math.round(panda.faceOffset.h * SCALE),
-  };
-
   const onCopy = async () => {
     if (!previewRef.current) return;
     try {
@@ -323,11 +321,14 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
       </button>
 
       <div ref={previewRef} className="draft-preview">
-        <img src={panda.src} alt={panda.id} draggable={false} className="draft-panda-img" />
-        <img
-          src={face.src} alt={face.id} draggable={false}
-          className="draft-face-img"
-          style={{ ...faceStyle, objectFit: 'contain' }}
+        <PandaCanvas
+          pandaSrc={panda.src}
+          faceSrc={face.src}
+          faceOffset={panda.faceOffset}
+          alt={panda.id}
+          className="draft-panda-img"
+          style={{ objectFit: 'contain' }}
+          size={512}
         />
         {fav.text && <div className="draft-caption">{fav.text}</div>}
       </div>

@@ -16,6 +16,7 @@ import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, type Material } from '@/
 import { pickRandomText, RANDOM_TEXTS_ZH, RANDOM_TEXTS_EN } from '@/data/quickModeTexts';
 import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
 import { copyImageToClipboard, downloadImage } from '@/lib/exportImage';
+import { PandaCanvas } from '@/components/PandaCanvas';
 import {
   Sparkles, Copy, Download, Heart, Wand2, ArrowRight, Type,
   RotateCcw, FlipHorizontal, Check, X,
@@ -223,9 +224,6 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
 
   // -------- render --------
 
-  // face transform style (rotation + flip)
-  const faceTransform = `${faceFlipX ? 'scaleX(-1) ' : ''}rotate(${faceRotation}deg)`;
-
   return (
     <div className="quickmode-root">
       <div className="quickmode-hero">
@@ -239,22 +237,15 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
       {/* Preview — 滚轮在这里微调 face rotation */}
       <div className="quickmode-preview-wrap" ref={previewWrapRef}>
         <div ref={previewRef} className="quickmode-preview" style={{ fontFamily: fontStack }}>
-          <img
-            src={panda.src} alt={panda.id} draggable={false}
+          <PandaCanvas
+            pandaSrc={panda.src}
+            faceSrc={face.src}
+            faceOffset={panda.faceOffset}
+            rotation={faceRotation}
+            flipX={faceFlipX}
+            alt={panda.id}
             className="qm-panda-img"
-          />
-          <img
-            src={face.src} alt={face.id} draggable={false}
-            className="qm-face-img"
-            style={{
-              left: 25 + panda.faceOffset.x,
-              top: 25 + panda.faceOffset.y,
-              width: panda.faceOffset.w,
-              height: panda.faceOffset.h,
-              transform: faceTransform,
-              // face PNG 已透明化（padding alpha=0 by make_face_transparent.py），无需 mask
-              objectFit: 'contain',
-            }}
+            style={{ objectFit: 'contain' }}
           />
           {text && (
             <div className="qm-caption" style={{ fontFamily: fontStack }}>
