@@ -18,6 +18,7 @@ import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
 import { useLiveAnchor } from '@/hooks/useLiveAnchor';
 import { copyImageToClipboard, downloadImage } from '@/lib/exportImage';
 import { PandaCanvas } from '@/components/PandaCanvas';
+import { calcEditorFaceLayout } from '@/lib/composeMeme';
 import {
   Sparkles, Copy, Download, Heart, Wand2, ArrowRight, Type,
   RotateCcw, FlipHorizontal, Check, X,
@@ -147,7 +148,14 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
     setNamePopoverOpen(false);
   }, [favKey, rename]);
 
-  const onToEditor = useCallback(() => {
+  const onToEditor = useCallback(async () => {
+    // 用 calcEditorFaceLayout 让编辑器里 face 元素位置/大小跟 QuickMode 预览视觉一致
+    const offset350 = getLivePandaFaceOffset(panda);
+    const faceLayout = await calcEditorFaceLayout({
+      pandaSrc: panda.src,
+      faceSrc: face.src,
+      faceOffset350: offset350,
+    });
     const pandaEl = {
       id: generateId(),
       type: 'image' as const,
@@ -159,13 +167,12 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
     dispatch({ type: 'CLEAR_CANVAS' });
     dispatch({ type: 'ADD_ELEMENT', element: pandaEl });
     setTimeout(() => {
-      const offset = panda.faceOffset;
       const faceEl = {
         id: generateId(),
         type: 'image' as const,
         src: face.src,
         name: face.id,
-        x: offset.x, y: offset.y, width: offset.w, height: offset.h,
+        x: faceLayout.x, y: faceLayout.y, width: faceLayout.width, height: faceLayout.height,
         rotation: faceRotation, opacity: 1, zIndex: 1, flipX: faceFlipX,
       };
       dispatch({ type: 'ADD_ELEMENT', element: faceEl });

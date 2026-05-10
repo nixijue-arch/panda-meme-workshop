@@ -2,11 +2,13 @@ import { useState, useCallback } from 'react';
 import { useMeme } from '@/context/MemeContext';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { ImageElement, TextElement, MemeElement } from '@/context/MemeContext';
-import { Download, Trash2, Shuffle, Image, MessageCircle, Sparkles, Settings2, Upload, X, ChevronUp, Camera, Type, AlignLeft, AlignCenter, AlignRight, Bold } from 'lucide-react';
+import { Download, Trash2, Shuffle, Image, MessageCircle, Sparkles, Settings2, Upload, X, ChevronUp, Camera, Type, AlignLeft, AlignCenter, AlignRight, Bold, Heart } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { PANDA_HEADS, FACES, getPandaFaceOffset } from '@/data/materials';
 import { PhotoCropModal } from '@/components/PhotoCropModal';
 import { SmartExtractModal } from '@/components/SmartExtractModal';
+import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
+import { toast } from 'sonner';
 
 const ZH_TEXTS = ['在？V我50','我不做人啦！','就这？','你不对劲','尊嘟假嘟','蚌埠住了','这波在大气层','笑死我了','开始你的表演','啊对对对','我真的会谢','无所谓我会出手','这就是中国速度','啊这','你在教我做事？','问题不大','我直接自信','这很合理','有内味了','气氛到这了','家人们谁懂啊','这班不上也罢','我说的是真的','这就是格局','我是废物','我裂开了','太对了哥','反杀反杀！','？？？','我先run了','上班哪有不疯的','这谁顶得住','差不多得了','这合理吗','我已经报警了','再装我就哭了','不可能的','你礼貌吗','给跪了','打工人打工魂','开摆','绷不住了','汗流浃背了','人间真实','笑不活了','绝了','6','小丑竟是我自己','速速撤退','毁灭吧','一键三连','下次一定','高产似那啥','cargo降落伞','我太难了','高手过招','有点意思','不太对劲','这就是实力','啊对对对','梦幻联动','血赚','亏麻了','原地起飞','给我整不会了','离谱','抽象','狠狠拿捏了','重拳出击','纯路人','理性讨论','有一说一','确实','龟龟','吓得我水都喷了','很有精神','一般般啦','祖安钢琴家','这波我必C','你完了','听我狡辩','满脸写着开心','为什么总是我','麻了','我悟了','佛了','杠精退散','老实人','正能量嗷','格局打开','毕竟我也不是什么恶魔','说出来你可能不信','此时一位靓仔路过','先赌为敬','重在参与','赢了会所嫩模','输了下海干活','问题不大'];
 
@@ -34,6 +36,25 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
   const [sheetOpen, setSheetOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [smartModalOpen, setSmartModalOpen] = useState(false);
+  const { toggle: toggleFav } = useQuickFavs();
+
+  // 保存当前编辑器内容为草图（自动从 elements 反推 panda + face + text）
+  const handleSaveDraft = useCallback(() => {
+    const pandaEl = state.elements.find(isPanda) as ImageElement | undefined;
+    const faceEl = state.elements.find(isFace) as ImageElement | undefined;
+    const textEl = state.elements.find((e) => e.type === 'text') as TextElement | undefined;
+    if (!pandaEl || !faceEl) {
+      toast.error(state.language === 'zh' ? '需要至少有 panda 和 face 才能存草图' : 'Need at least panda + face to save');
+      return;
+    }
+    const pandaId = pandaEl.name;
+    const faceId = faceEl.name;
+    const text = textEl?.text ?? '';
+    const fontFamily = textEl?.fontFamily ?? 'sans-serif';
+    const id = makeFavKey(pandaId, faceId, text, fontFamily);
+    toggleFav({ id, pandaId, faceId, text, fontFamily });
+    toast.success(state.language === 'zh' ? '已存到草图' : 'Saved to drafts');
+  }, [state.elements, state.language, toggleFav]);
 
   const handleExport = async () => {
     if (!canvasRef.current) return;
@@ -422,6 +443,9 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
                   </button>
                 </>
               )}
+              <button onClick={handleSaveDraft} disabled={state.elements.length === 0} className="py-3 rounded-lg text-sm font-bold text-white flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ backgroundColor: '#FF5E00' }}>
+                <Heart size={14} />{state.language === 'zh' ? '存草图' : 'Save'}
+              </button>
               <button onClick={handleExport} disabled={isExporting || state.elements.length === 0} className="py-3 rounded-lg text-sm font-bold text-white disabled:opacity-50" style={{ backgroundColor: '#00CC66' }}>
                 {isExporting ? '...' : t('download')}
               </button>
@@ -641,6 +665,7 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
       {/* Social Share + Footer Actions */}
       <div className="p-4 space-y-2 mt-auto">
         <button onClick={handleClearCanvas} disabled={state.elements.length === 0} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-30" style={{ backgroundColor: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}><Trash2 size={14} />{t('clearCanvas')}</button>
+        <button onClick={handleSaveDraft} disabled={state.elements.length === 0} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50" style={{ backgroundColor: '#FF5E00' }}><Heart size={14} />{state.language === 'zh' ? '存到草图' : 'Save to Drafts'}</button>
         <button onClick={handleExport} disabled={isExporting || state.elements.length === 0} className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold text-white transition-all hover:scale-[1.02] disabled:opacity-50" style={{ backgroundColor: '#00CC66' }}><Download size={16} />{isExporting ? '...' : t('download')}</button>
 
         {/* Social Share Buttons - icon only with tooltip */}

@@ -4,11 +4,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import JSZip from 'jszip';
 import { useMeme } from '@/context/MemeContext';
-import { ALL_PANDAS, ALL_FACES, getPandaFaceOffset, getLivePandaFaceOffset } from '@/data/materials';
+import { ALL_PANDAS, ALL_FACES, getLivePandaFaceOffset } from '@/data/materials';
 import { useQuickFavs, type QuickFav } from '@/hooks/useQuickFavs';
 import { useLiveAnchor } from '@/hooks/useLiveAnchor';
 import { captureNode, copyImageToClipboard, downloadImage } from '@/lib/exportImage';
-import { composeMeme } from '@/lib/composeMeme';
+import { composeMeme, calcEditorFaceLayout } from '@/lib/composeMeme';
 import { PandaCanvas } from '@/components/PandaCanvas';
 import {
   FolderOpen, Copy, Download, Trash2, ArrowRight, Sparkles, Edit2, Check, X,
@@ -121,15 +121,22 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
     }
   }, [selected, items, lang]);
 
-  // 进编辑器精修单张
-  const onSendToEditor = useCallback((fav: QuickFav) => {
+  // 进编辑器精修单张 — 用 calcEditorFaceLayout 让 face 元素位置/大小跟草图卡片视觉一致
+  // (之前直接用 350-coord faceOffset 当 face 元素 x/y/w/h，face PNG 含透明 padding 视觉位移)
+  const onSendToEditor = useCallback(async (fav: QuickFav) => {
     const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
     const face = ALL_FACES.find((f) => f.id === fav.faceId);
     if (!panda || !face) {
       toast.error(lang === 'zh' ? '素材丢失' : 'Material missing');
       return;
     }
-    const offset = getPandaFaceOffset(panda.id);
+    // 用 live faceOffset (含校准工具改动) + 算 face 元素的实际显示位置
+    const offset350 = getLivePandaFaceOffset(panda);
+    const faceLayout = await calcEditorFaceLayout({
+      pandaSrc: panda.src,
+      faceSrc: face.src,
+      faceOffset350: offset350,
+    });
     dispatch({ type: 'CLEAR_CANVAS' });
     dispatch({
       type: 'ADD_ELEMENT',
@@ -144,7 +151,7 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
         type: 'ADD_ELEMENT',
         element: {
           id: generateId(), type: 'image' as const, src: face.src, name: face.id,
-          x: offset.x, y: offset.y, width: offset.w, height: offset.h,
+          x: faceLayout.x, y: faceLayout.y, width: faceLayout.width, height: faceLayout.height,
           rotation: 0, opacity: 1, zIndex: 1, flipX: false,
         },
       });

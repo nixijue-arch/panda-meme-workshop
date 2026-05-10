@@ -4,7 +4,7 @@
 //
 // Contributed by PandaHead (https://pandahead.fun · github.com/jokkibtc/panda)
 
-import { useEffect, useRef, useState } from 'react';
+import { Component, useEffect, useRef, useState, type ReactNode } from 'react';
 import { composeMeme } from '@/lib/composeMeme';
 import { useLiveAnchor } from '@/hooks/useLiveAnchor';
 
@@ -63,7 +63,35 @@ function makeKey(p: Props, eff: { x: number; y: number; w: number; h: number }, 
   return [p.pandaSrc, p.faceSrc, eff.x, eff.y, eff.w, eff.h, p.rotation ?? 0, p.flipX ? 1 : 0, p.size ?? 1024, faceFill].join('|');
 }
 
+// ErrorBoundary 防 PandaCanvas 内部任何 throw 把整页搞白屏
+class PandaCanvasBoundary extends Component<{ children: ReactNode; pandaId?: string }, { err: Error | null }> {
+  state: { err: Error | null } = { err: null };
+  static getDerivedStateFromError(err: Error) { return { err }; }
+  componentDidCatch(err: Error, info: { componentStack?: string | null }) {
+    // eslint-disable-next-line no-console
+    console.error('[PandaCanvas error]', this.props.pandaId, err, info.componentStack);
+  }
+  render() {
+    if (this.state.err) {
+      return (
+        <div style={{ width: '100%', height: '100%', minHeight: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fee', color: '#c00', fontSize: 11, padding: 8, textAlign: 'center', borderRadius: 4 }}>
+          合成失败：{this.state.err.message}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function PandaCanvas(props: Props) {
+  return (
+    <PandaCanvasBoundary pandaId={props.pandaId}>
+      <PandaCanvasInner {...props} />
+    </PandaCanvasBoundary>
+  );
+}
+
+function PandaCanvasInner(props: Props) {
   const { className, style, alt, draggable = false, onRendered } = props;
   // DEV: 校准工具改 anchor 后强制本组件 re-render → 重新读 localStorage → makeKey 新值 → useEffect 重 compose
   useLiveAnchor();

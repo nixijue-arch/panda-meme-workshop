@@ -262,6 +262,38 @@ export async function composeMeme(args: ComposeMemeArgs): Promise<string> {
   return c.toDataURL('image/png');
 }
 
+// 算 face 元素在编辑器（panda 占 350×350 box）里的实际位置 + 大小
+// 用同 composeMemeCanvas 的 face content_center 公式，让编辑器里的 face 跟草图卡片视觉一致
+// 编辑器画 panda 是 350×350，face 是独立 image 元素 — 用此函数算 face 元素的 x/y/width/height
+export async function calcEditorFaceLayout(args: {
+  pandaSrc: string;
+  faceSrc: string;
+  faceOffset350: { x: number; y: number; w: number; h: number };
+  faceFill?: number;
+  panda350OffsetX?: number; // panda 在编辑器 canvas 里的左上角 X (default 75，跟现有 panda x:75 一致)
+  panda350OffsetY?: number; // default 50
+}): Promise<{ x: number; y: number; width: number; height: number }> {
+  const { pandaSrc, faceSrc, faceOffset350, faceFill = 0.95, panda350OffsetX = 75, panda350OffsetY = 50 } = args;
+  const [, face] = await Promise.all([loadImage(pandaSrc), loadImage(faceSrc)]);
+  const fbb = getContentBbox(face);
+  const fcw = Math.max(1, fbb[2] - fbb[0]);
+  const fch = Math.max(1, fbb[3] - fbb[1]);
+  const fScale = Math.min(faceOffset350.w / fcw, faceOffset350.h / fch) * faceFill;
+  const dispW = face.naturalWidth * fScale;
+  const dispH = face.naturalHeight * fScale;
+  const ccX = ((fbb[0] + fbb[2]) / 2) * fScale;
+  const ccY = ((fbb[1] + fbb[3]) / 2) * fScale;
+  // anchor 在编辑器画布坐标系 (350-coord + panda offset)
+  const anchorCx = panda350OffsetX + faceOffset350.x + faceOffset350.w / 2;
+  const anchorCy = panda350OffsetY + faceOffset350.y + faceOffset350.h / 2;
+  return {
+    x: Math.round(anchorCx - ccX),
+    y: Math.round(anchorCy - ccY),
+    width: Math.round(dispW),
+    height: Math.round(dispH),
+  };
+}
+
 export async function composeMemeBlob(args: ComposeMemeArgs): Promise<Blob> {
   const [panda, face] = await Promise.all([loadImage(args.pandaSrc), loadImage(args.faceSrc)]);
   const c = composeMemeCanvas({
