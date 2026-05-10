@@ -1,12 +1,12 @@
 // Collection v2 — 草图管理板块（批量选 + ZIP 导出 + filter）
 // Contributed by PandaHead (https://pandahead.fun · github.com/jokkibtc/panda)
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import JSZip from 'jszip';
 import { useMeme } from '@/context/MemeContext';
 import { ALL_PANDAS, ALL_FACES, getPandaFaceOffset } from '@/data/materials';
 import { useQuickFavs, type QuickFav } from '@/hooks/useQuickFavs';
-import { captureNode, copyImageToClipboard, downloadImage } from '@/lib/exportImage';
+import { composeAsync } from '@/lib/composeCanvas';
 import {
   FolderOpen, Copy, Download, Trash2, ArrowRight, Sparkles, Edit2, Check, X,
   Package, CheckSquare, Square,
@@ -54,39 +54,35 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
     toast.success(lang === 'zh' ? `已删除 ${selected.size} 张` : `Deleted ${selected.size}`);
   }, [selected, remove, lang]);
 
-  // 批量打 ZIP — 每张草图渲染到离屏 element → captureNode → blob → zip.file
+  // 批量打 ZIP — 每张草图用 canvas 三层合成 → toBlob → zip.file
   const onBatchZip = useCallback(async () => {
     if (selected.size === 0) return;
     const itemsToPack = items.filter((it) => selected.has(it.id));
     if (!itemsToPack.length) return;
-    if (!offscreenContainerRef.current) return;
 
     toast.info(lang === 'zh' ? `打包 ${itemsToPack.length} 张...` : `Packing ${itemsToPack.length}...`);
 
     try {
       const zip = new JSZip();
-      // 离屏渲染容器：每张草图 render → captureNode → 加进 zip
-      const container = offscreenContainerRef.current;
+      const tmpCanvas = document.createElement('canvas');
       for (let i = 0; i < itemsToPack.length; i++) {
         const fav = itemsToPack[i];
         const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
         const face = ALL_FACES.find((f) => f.id === fav.faceId);
         if (!panda || !face) continue;
-        // 创建临时 preview node
-        const node = document.createElement('div');
-        node.style.cssText = 'position:absolute;width:400px;height:480px;background:#fff;left:-99999px;top:0;';
-        node.innerHTML = `
-          <img src="${panda.src}" style="position:absolute;left:25px;top:25px;width:350px;height:350px;object-fit:contain;" crossorigin="anonymous" />
-          <img src="${face.src}" style="position:absolute;left:${25 + panda.faceOffset.x}px;top:${25 + panda.faceOffset.y}px;width:${panda.faceOffset.w}px;height:${panda.faceOffset.h}px;object-fit:contain;" crossorigin="anonymous" />
-          ${fav.text ? `<div style="position:absolute;left:0;right:0;bottom:18px;text-align:center;font-size:32px;font-weight:700;color:#000;padding:0 16px;line-height:1.2;font-family:${fav.fontFamily || 'sans-serif'};">${fav.text}</div>` : ''}
-        `;
-        container.appendChild(node);
-        // 等图片加载（简单 await frame + 100ms）
-        await new Promise((r) => setTimeout(r, 200));
-        const blob = await captureNode(node);
+        await composeAsync({
+          canvas: tmpCanvas,
+          pandaSrc: panda.src,
+          faceSrc: face.src,
+          faceOffset: panda.faceOffset,
+          text: fav.text,
+          fontStack: fav.fontFamily || '"Noto Sans SC", system-ui, sans-serif',
+          size: 800,
+        });
+        const blob = await new Promise<Blob | null>((r) => tmpCanvas.toBlob(r, 'image/png'));
+        if (!blob) continue;
         const safeName = (fav.name || fav.text || `panda-${i + 1}`).replace(/[^\w一-龥-]/g, '_').slice(0, 40);
         zip.file(`${String(i + 1).padStart(2, '0')}-${safeName}.png`, blob);
-        container.removeChild(node);
       }
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(zipBlob);
@@ -258,7 +254,7 @@ interface DraftCardProps {
 function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, onSendToEditor }: DraftCardProps) {
   const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
   const face = ALL_FACES.find((f) => f.id === fav.faceId);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState(fav.name || fav.text || '');
 
@@ -268,6 +264,21 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
     return ((h % 7) - 3) * 0.8;
   }, [fav.id]);
 
+  // canvas 三层合成
+  useEffect(() => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas || !panda || !face) return;
+    composeAsync({
+      canvas,
+      pandaSrc: panda.src,
+      faceSrc: face.src,
+      faceOffset: panda.faceOffset,
+      text: fav.text,
+      fontStack: fav.fontFamily || '"Noto Sans SC", system-ui, sans-serif',
+      size: 400,
+    }).catch((e) => console.error('[Draft compose]', e));
+  }, [panda, face, fav.text, fav.fontFamily]);
+
   if (!panda || !face) {
     return (
       <div className="draft-card draft-card-broken" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -276,18 +287,13 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
     );
   }
 
-  const SCALE = 200 / 350;
-  const faceStyle = {
-    left: Math.round(panda.faceOffset.x * SCALE),
-    top: Math.round(panda.faceOffset.y * SCALE),
-    width: Math.round(panda.faceOffset.w * SCALE),
-    height: Math.round(panda.faceOffset.h * SCALE),
-  };
-
   const onCopy = async () => {
-    if (!previewRef.current) return;
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
     try {
-      await copyImageToClipboard(previewRef.current);
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
+      if (!blob) throw new Error();
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       toast.success(lang === 'zh' ? '已复制' : 'Copied');
     } catch {
       toast.error(lang === 'zh' ? '复制失败' : 'Copy failed');
@@ -295,12 +301,17 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
   };
 
   const onDownload = async () => {
-    if (!previewRef.current) return;
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
     try {
-      await downloadImage(
-        previewRef.current,
-        `panda-${fav.pandaId}-${fav.faceId}-${Date.now()}.png`
-      );
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
+      if (!blob) throw new Error();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `panda-${fav.pandaId}-${fav.faceId}-${Date.now()}.png`;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
     } catch {
       toast.error(lang === 'zh' ? '下载失败' : 'Download failed');
     }
@@ -322,14 +333,8 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
         {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
       </button>
 
-      <div ref={previewRef} className="draft-preview">
-        <img src={panda.src} alt={panda.id} draggable={false} className="draft-panda-img" />
-        <img
-          src={face.src} alt={face.id} draggable={false}
-          className="draft-face-img"
-          style={{ ...faceStyle, objectFit: 'contain' }}
-        />
-        {fav.text && <div className="draft-caption">{fav.text}</div>}
+      <div className="draft-preview">
+        <canvas ref={previewCanvasRef} className="draft-canvas" />
       </div>
 
       <div className="draft-meta">

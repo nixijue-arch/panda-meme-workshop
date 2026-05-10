@@ -15,7 +15,7 @@ import { useMeme } from '@/context/MemeContext';
 import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, type Material } from '@/data/materials';
 import { pickRandomText, RANDOM_TEXTS_ZH, RANDOM_TEXTS_EN } from '@/data/quickModeTexts';
 import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
-import { copyImageToClipboard, downloadImage } from '@/lib/exportImage';
+import { composeAsync } from '@/lib/composeCanvas';
 import {
   Sparkles, Copy, Download, Heart, Wand2, ArrowRight, Type,
   RotateCcw, FlipHorizontal, Check, X,
@@ -64,6 +64,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
 
   const previewRef = useRef<HTMLDivElement>(null);
   const previewWrapRef = useRef<HTMLDivElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const { favs, toggle, rename } = useQuickFavs();
 
   const panda = useMemo(
@@ -101,9 +102,12 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
   const onFlipH = useCallback(() => setFaceFlipX((f) => !f), []);
 
   const onCopy = useCallback(async () => {
-    if (!previewRef.current) return;
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
     try {
-      await copyImageToClipboard(previewRef.current);
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
+      if (!blob) throw new Error('no blob');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       toast.success(t('quickCopied'));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'unknown';
@@ -112,9 +116,18 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
   }, [t]);
 
   const onDownload = useCallback(async () => {
-    if (!previewRef.current) return;
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
     try {
-      await downloadImage(previewRef.current, `panda-${pandaId}-${faceId}-${Date.now()}.png`);
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
+      if (!blob) throw new Error('no blob');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `panda-${pandaId}-${faceId}-${Date.now()}.png`;
+      a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
     } catch (e) {
       toast.error(`Download failed: ${e instanceof Error ? e.message : 'unknown'}`);
     }
@@ -221,10 +234,29 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
     };
   }, []);
 
-  // -------- render --------
+  // canvas 合成 — 任何 trait 变化都重新 compose
+  useEffect(() => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas || !panda || !face) return;
+    let cancelled = false;
+    composeAsync({
+      canvas,
+      pandaSrc: panda.src,
+      faceSrc: face.src,
+      faceOffset: panda.faceOffset,
+      faceRotation,
+      faceFlipX,
+      text,
+      fontStack,
+      size: 800,  // 高分辨率（display 缩到 wrap 内）
+    }).catch((e) => {
+      if (cancelled) return;
+      console.error('[QuickMode compose]', e);
+    });
+    return () => { cancelled = true; };
+  }, [panda, face, faceRotation, faceFlipX, text, fontStack]);
 
-  // face transform style (rotation + flip)
-  const faceTransform = `${faceFlipX ? 'scaleX(-1) ' : ''}rotate(${faceRotation}deg)`;
+  // -------- render --------
 
   return (
     <div className="quickmode-root">
@@ -236,31 +268,15 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
         <p className="quickmode-hero-sub">{t('quickModeSubtitle')}</p>
       </div>
 
-      {/* Preview — 滚轮在这里微调 face rotation */}
+      {/* Preview — canvas 三层合成（PandaHead 自家方式：face 在底，panda 处理过黑廓 cover face）
+          滚轮在 wrap 上微调 face rotation */}
       <div className="quickmode-preview-wrap" ref={previewWrapRef}>
-        <div ref={previewRef} className="quickmode-preview" style={{ fontFamily: fontStack }}>
-          <img
-            src={panda.src} alt={panda.id} draggable={false}
-            className="qm-panda-img"
+        <div ref={previewRef} className="quickmode-preview">
+          <canvas
+            ref={previewCanvasRef}
+            className="qm-canvas"
+            style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', borderRadius: 'var(--r-md, 6px)' }}
           />
-          <img
-            src={face.src} alt={face.id} draggable={false}
-            className="qm-face-img"
-            style={{
-              left: 25 + panda.faceOffset.x,
-              top: 25 + panda.faceOffset.y,
-              width: panda.faceOffset.w,
-              height: panda.faceOffset.h,
-              transform: faceTransform,
-              // face PNG 已透明化（padding alpha=0 by make_face_transparent.py），无需 mask
-              objectFit: 'contain',
-            }}
-          />
-          {text && (
-            <div className="qm-caption" style={{ fontFamily: fontStack }}>
-              {text}
-            </div>
-          )}
         </div>
       </div>
 
