@@ -4,7 +4,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { ImageElement, TextElement, MemeElement } from '@/context/MemeContext';
 import { Download, Trash2, Shuffle, Image, MessageCircle, Sparkles, Settings2, Upload, X, ChevronUp, Camera, Type, AlignLeft, AlignCenter, AlignRight, Bold, Heart } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import { PANDA_HEADS, FACES, ALL_PANDAS, ALL_FACES, getPandaFaceOffset, getLivePandaFaceOffset } from '@/data/materials';
+import { PANDA_HEADS, ALL_PANDAS, ALL_FACES, getPandaFaceOffset, getLivePandaFaceOffset } from '@/data/materials';
 import { PhotoCropModal } from '@/components/PhotoCropModal';
 import { SmartExtractModal } from '@/components/SmartExtractModal';
 import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
