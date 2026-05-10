@@ -6,6 +6,7 @@ import { Download, Trash2, Shuffle, Image, MessageCircle, Sparkles, Settings2, U
 import html2canvas from 'html2canvas';
 import { PANDA_HEADS, FACES, getPandaFaceOffset } from '@/data/materials';
 import { PhotoCropModal } from '@/components/PhotoCropModal';
+import { SmartExtractModal } from '@/components/SmartExtractModal';
 
 const ZH_TEXTS = ['在？V我50','我不做人啦！','就这？','你不对劲','尊嘟假嘟','蚌埠住了','这波在大气层','笑死我了','开始你的表演','啊对对对','我真的会谢','无所谓我会出手','这就是中国速度','啊这','你在教我做事？','问题不大','我直接自信','这很合理','有内味了','气氛到这了','家人们谁懂啊','这班不上也罢','我说的是真的','这就是格局','我是废物','我裂开了','太对了哥','反杀反杀！','？？？','我先run了','上班哪有不疯的','这谁顶得住','差不多得了','这合理吗','我已经报警了','再装我就哭了','不可能的','你礼貌吗','给跪了','打工人打工魂','开摆','绷不住了','汗流浃背了','人间真实','笑不活了','绝了','6','小丑竟是我自己','速速撤退','毁灭吧','一键三连','下次一定','高产似那啥','cargo降落伞','我太难了','高手过招','有点意思','不太对劲','这就是实力','啊对对对','梦幻联动','血赚','亏麻了','原地起飞','给我整不会了','离谱','抽象','狠狠拿捏了','重拳出击','纯路人','理性讨论','有一说一','确实','龟龟','吓得我水都喷了','很有精神','一般般啦','祖安钢琴家','这波我必C','你完了','听我狡辩','满脸写着开心','为什么总是我','麻了','我悟了','佛了','杠精退散','老实人','正能量嗷','格局打开','毕竟我也不是什么恶魔','说出来你可能不信','此时一位靓仔路过','先赌为敬','重在参与','赢了会所嫩模','输了下海干活','问题不大'];
 
@@ -32,6 +33,7 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [smartModalOpen, setSmartModalOpen] = useState(false);
 
   const handleExport = async () => {
     if (!canvasRef.current) return;
@@ -412,6 +414,9 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
                     <Upload size={14} />{state.language === 'zh' ? '上传人脸' : 'Upload Face'}
                     <input type="file" accept="image/png,image/jpeg,image/jpg,image/gif" onChange={handleUploadFace} className="hidden" />
                   </label>
+                  <button onClick={() => { console.log('[SmartExtract] mobile button clicked'); setSmartModalOpen(true); }} className="py-3 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1" style={{ backgroundColor: '#10B981' }}>
+                    <Sparkles size={14} />{t('smartExtract')}
+                  </button>
                   <button onClick={() => setModalOpen(true)} className="py-3 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1" style={{ backgroundColor: '#F59E0B' }}>
                     <Camera size={14} />{t('customFace')}
                   </button>
@@ -459,6 +464,12 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
         <PhotoCropModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
+          onConfirm={handleCustomFaceConfirm}
+          language={state.language}
+        />
+        <SmartExtractModal
+          isOpen={smartModalOpen}
+          onClose={() => setSmartModalOpen(false)}
           onConfirm={handleCustomFaceConfirm}
           language={state.language}
         />
@@ -618,6 +629,8 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
               <p className="text-[10px] text-center" style={{ color: '#555' }}>{state.language === 'zh' ? '替换当前熊猫头' : 'Replace current panda'}</p>
               <label className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02] cursor-pointer" style={{ backgroundColor: '#EC4899' }}><Upload size={16} />{state.language === 'zh' ? '上传人脸' : 'Upload Face'}<input type="file" accept="image/png,image/jpeg,image/jpg,image/gif" onChange={handleUploadFace} className="hidden" /></label>
               <p className="text-[10px] text-center" style={{ color: '#555' }}>{state.language === 'zh' ? '替换当前人脸' : 'Replace current face'}</p>
+              <button onClick={() => { console.log('[SmartExtract] desktop button clicked'); setSmartModalOpen(true); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02]" style={{ backgroundColor: '#10B981' }}><Sparkles size={16} />{t('smartExtract')}</button>
+              <p className="text-[10px] text-center" style={{ color: '#555' }}>{state.language === 'zh' ? '自动识别人脸 · 一键抠图' : 'Auto face detect · One-click cutout'}</p>
               <button onClick={() => setModalOpen(true)} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:scale-[1.02]" style={{ backgroundColor: '#F59E0B' }}><Camera size={16} />{t('customFace')}</button>
               <p className="text-[10px] text-center" style={{ color: '#555' }}>{state.language === 'zh' ? '上传照片自动生成熊猫脸' : 'Upload photo to auto-generate face'}</p>
             </>

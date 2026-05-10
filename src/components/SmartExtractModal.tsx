@@ -371,10 +371,11 @@ export function SmartExtractModal({ isOpen, onClose, onConfirm, language }: Prop
     onClose();
   };
 
+  console.log('[SmartExtractModal] render, isOpen=', isOpen);
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={handleClose}>
+    <div className="fixed inset-0 z-[2001] flex items-center justify-center p-2" style={{ backgroundColor: 'rgba(0,0,0,0.9)' }} onClick={handleClose}>
       <div
         className="relative w-full max-w-3xl rounded-2xl p-6 max-h-[95vh] overflow-y-auto"
         style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}

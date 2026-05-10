@@ -36,19 +36,14 @@ function containFit(W: number, H: number, target: number) {
   return { x: (target - drawW) / 2, y: (target - drawH) / 2, w: drawW, h: drawH, scale };
 }
 
-const _faceMaskCache = new Map<string, HTMLCanvasElement>();
+const _darkMaskCache = new Map<string, HTMLCanvasElement>();
 
-// panda face area mask（cache by src + size）
-// 关键：pmw assets 两种风格混存：
-//   1) 实心款（panda-ph-*）：脸区是白色 opaque 像素 → 之前 isWhite 判定 ok
-//   2) 描边款（panda-01 / panda-04 等）：脸区是 透明 (alpha=0)，只有黑廓和细白线
-// 统一 mask 算法：face 区 = "NOT 暗-opaque" = 透明像素 OR 浅色像素
-//   - 暗 opaque (alpha>200 & luma<80) → 黑廓/暗物体 → mask=0 → face 不渲染
-//   - 透明 OR 浅色 → mask=255 → face 渲染
-// 这样描边款的透明脸区和实心款的白色脸区都被正确识别为 face anchor area
-function getPandaFaceMask(panda: HTMLImageElement, size: number): HTMLCanvasElement {
+// panda 暗-opaque pixel mask（cache by src + size）
+// 用 destination-out 从 face 减去这些像素：保留 panda 的黑廓/墨镜/暗道具
+// 不再单独识别"face 区"——face 区由 faceOffset 椭圆 mask 决定（drawFaceLayer 内）
+function getPandaDarkMask(panda: HTMLImageElement, size: number): HTMLCanvasElement {
   const key = `${panda.src}|${size}`;
-  const cached = _faceMaskCache.get(key);
+  const cached = _darkMaskCache.get(key);
   if (cached) return cached;
   const c = document.createElement('canvas');
   c.width = size;
@@ -66,16 +61,15 @@ function getPandaFaceMask(panda: HTMLImageElement, size: number): HTMLCanvasElem
     const g = arr[i + 1];
     const b = arr[i + 2];
     const a = arr[i + 3];
-    // luma per Rec.601
     const luma = 0.299 * r + 0.587 * g + 0.114 * b;
     const isDarkOpaque = a > 200 && luma < 80;
-    arr[i] = 255;
-    arr[i + 1] = 255;
-    arr[i + 2] = 255;
-    arr[i + 3] = isDarkOpaque ? 0 : 255;
+    arr[i] = 0;
+    arr[i + 1] = 0;
+    arr[i + 2] = 0;
+    arr[i + 3] = isDarkOpaque ? 255 : 0;
   }
   ctx.putImageData(data, 0, 0);
-  _faceMaskCache.set(key, c);
+  _darkMaskCache.set(key, c);
   return c;
 }
 
@@ -130,12 +124,20 @@ export function composeMemeCanvas(opts: ComposeOpts): HTMLCanvasElement {
   fctx.drawImage(face, -drawFw / 2, -drawFh / 2, drawFw, drawFh);
   fctx.restore();
 
-  // 3. 关键：用 panda face mask 裁 face — face 只在非暗-opaque 区显示
-  //    描边款脸区（透明）+ 实心款脸区（白色）都识别为 face anchor area
-  //    黑廓 / 墨镜 / 暗物体 自动保留 panda 原色
-  const fmask = getPandaFaceMask(panda, size);
+  // 3. 双 mask 裁 face（v3，仿 PandaHead 的双 mask clip）：
+  //    a) ellipse mask: face 限制在 faceOffset 内的椭圆形 — 防止矩形 face 在 panda 头廓外漏角
+  //       （rotation 时尤其重要，旋转后矩形角会突出到头外）
+  //    b) panda 暗-opaque 减法: 减去 panda 黑廓/墨镜/暗道具 — 保留 sunglasses, signs, props
+  //    不再用"识别 face area"的 hack — face area 由 faceOffset 椭圆显式定义
   fctx.globalCompositeOperation = 'destination-in';
-  fctx.drawImage(fmask, 0, 0);
+  fctx.beginPath();
+  fctx.ellipse(fox + fow / 2, foy + foh / 2, fow / 2, foh / 2, 0, 0, Math.PI * 2);
+  fctx.fillStyle = '#fff';
+  fctx.fill();
+  // 减 panda 暗 opaque 像素 — sunglasses / 牌子 / 黑物体 保留 panda 原色
+  fctx.globalCompositeOperation = 'destination-out';
+  const dmask = getPandaDarkMask(panda, size);
+  fctx.drawImage(dmask, 0, 0);
   fctx.globalCompositeOperation = 'source-over';
 
   // 4. composite face 层到 main
