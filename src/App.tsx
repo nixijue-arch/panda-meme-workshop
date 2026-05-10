@@ -7,10 +7,11 @@ import { CanvasArea } from '@/sections/CanvasArea';
 import { Museum } from '@/sections/Museum';
 import { AboutPanda } from '@/sections/AboutPanda';
 import { QuickMode } from '@/sections/QuickMode';
+import { Collection } from '@/sections/Collection';
 import { Toaster } from 'sonner';
 import './App.css';
 
-export type Page = 'quick' | 'editor' | 'museum' | 'about';
+export type Page = 'quick' | 'editor' | 'collection' | 'museum' | 'about';
 
 function App() {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -23,6 +24,8 @@ function App() {
         <Header page={page} setPage={setPage} />
         {page === 'quick' ? (
           <QuickMode onOpenEditor={() => setPage('editor')} />
+        ) : page === 'collection' ? (
+          <Collection onOpenQuick={() => setPage('quick')} onOpenEditor={() => setPage('editor')} />
         ) : page === 'editor' ? (
           <div className="flex-1 flex overflow-hidden main-content">
             <LeftSidebar />

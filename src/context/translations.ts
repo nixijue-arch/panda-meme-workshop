@@ -85,6 +85,13 @@ export const translations = {
     'quickFontDefault': '默认字体',
     'quickFontSerif': '宋体',
     'quickFontMono': '等宽',
+    // Collection (草图管理 — contributed by PandaHead)
+    'collectionTitle': '草图',
+    'collectionEmpty': '草图本是空的',
+    'collectionEmptyHint': '去快速生图收藏几张试试',
+    'collectionGoQuick': '打开快速生图',
+    'collectionRename': '改名',
+    'collectionDelete': '删除',
   },
   en: {
     'brand': 'MemeForge',
@@ -172,6 +179,13 @@ export const translations = {
     'quickFontDefault': 'Default',
     'quickFontSerif': 'Serif',
     'quickFontMono': 'Mono',
+    // Collection
+    'collectionTitle': 'Drafts',
+    'collectionEmpty': 'No drafts yet',
+    'collectionEmptyHint': 'Open Quick mode and save some drafts',
+    'collectionGoQuick': 'Open Quick Mode',
+    'collectionRename': 'Rename',
+    'collectionDelete': 'Delete',
   },
 } as const;
 

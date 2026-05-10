@@ -1,5 +1,5 @@
 import { useMeme } from '@/context/MemeContext';
-import { Languages, Sparkles, Copy, CheckCircle2, Image, PenTool, BookOpen, User, Zap } from 'lucide-react';
+import { Languages, Sparkles, Copy, CheckCircle2, Image, PenTool, BookOpen, User, Zap, FolderOpen } from 'lucide-react';
 import { useState } from 'react';
 import type { Page } from '@/App';
 
@@ -58,6 +58,15 @@ export function Header({ page, setPage }: { page: Page; setPage: (page: Page) =>
         >
           <PenTool size={14} />
           <span className="link-label">{state.language === 'zh' ? '编辑器' : 'Editor'}</span>
+        </button>
+        <button
+          onClick={() => setPage('collection')}
+          className="header-link"
+          style={page === 'collection' ? { backgroundColor: 'rgba(255,94,0,0.18)', borderColor: '#FF5E00', color: '#FF5E00' } : {}}
+          title={t('collectionTitle')}
+        >
+          <FolderOpen size={14} />
+          <span className="link-label">{t('collectionTitle')}</span>
         </button>
         <button
           onClick={() => setPage('museum')}
