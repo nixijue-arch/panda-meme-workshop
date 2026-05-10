@@ -247,6 +247,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
         <div ref={previewRef} className="quickmode-preview" style={{ fontFamily: fontStack }}>
           <PandaCanvas
             pandaSrc={panda.src}
+            pandaId={panda.id}
             faceSrc={face.src}
             faceOffset={getLivePandaFaceOffset(panda)}
             rotation={deferredRotation}

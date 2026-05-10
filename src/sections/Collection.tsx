@@ -332,6 +332,7 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
       <div ref={previewRef} className="draft-preview">
         <PandaCanvas
           pandaSrc={panda.src}
+          pandaId={panda.id}
           faceSrc={face.src}
           faceOffset={getLivePandaFaceOffset(panda)}
           alt={panda.id}

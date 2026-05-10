@@ -6,9 +6,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { composeMeme } from '@/lib/composeMeme';
+import { useLiveAnchor } from '@/hooks/useLiveAnchor';
 
 interface Props {
   pandaSrc: string;
+  pandaId?: string; // DEV: 传了的话，PandaCanvas 内部 DEV-only 读 localStorage override 兜底（不依赖调用方）
   faceSrc: string;
   faceOffset: { x: number; y: number; w: number; h: number };
   rotation?: number;
@@ -29,15 +31,47 @@ interface Rendered {
   naturalH: number;
 }
 
-function makeKey(p: Props): string {
-  return [p.pandaSrc, p.faceSrc, p.faceOffset.x, p.faceOffset.y, p.faceOffset.w, p.faceOffset.h, p.rotation ?? 0, p.flipX ? 1 : 0, p.size ?? 1024, p.faceFill ?? 0.95].join('|');
+// DEV-only: 读 localStorage anchor override（pandaId 模式）兜底
+// 即使调用方传了过期的 faceOffset，PandaCanvas 内部也会用 localStorage 最新值覆盖
+function getEffectiveOffset(props: Props): { x: number; y: number; w: number; h: number } {
+  if (import.meta.env.DEV && props.pandaId) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('pmw-anchor-overrides-v1') || '{}');
+      const ov = stored[props.pandaId];
+      if (ov?.faceOffset) return ov.faceOffset;
+    } catch {
+      /* ignore */
+    }
+  }
+  return props.faceOffset;
+}
+
+function getEffectiveFaceFill(props: Props): number | undefined {
+  if (import.meta.env.DEV && props.pandaId) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('pmw-anchor-overrides-v1') || '{}');
+      const ov = stored[props.pandaId];
+      if (typeof ov?.faceFill === 'number') return ov.faceFill;
+    } catch {
+      /* ignore */
+    }
+  }
+  return props.faceFill;
+}
+
+function makeKey(p: Props, eff: { x: number; y: number; w: number; h: number }, faceFill: number): string {
+  return [p.pandaSrc, p.faceSrc, eff.x, eff.y, eff.w, eff.h, p.rotation ?? 0, p.flipX ? 1 : 0, p.size ?? 1024, faceFill].join('|');
 }
 
 export function PandaCanvas(props: Props) {
   const { className, style, alt, draggable = false, onRendered } = props;
+  // DEV: 校准工具改 anchor 后强制本组件 re-render → 重新读 localStorage → makeKey 新值 → useEffect 重 compose
+  useLiveAnchor();
+  const effectiveOffset = getEffectiveOffset(props);
+  const effectiveFill = getEffectiveFaceFill(props) ?? 0.95;
   const [rendered, setRendered] = useState<Rendered>({ key: '', url: '', naturalW: 0, naturalH: 0 });
   const reqRef = useRef<number>(0);
-  const targetKey = makeKey(props);
+  const targetKey = makeKey(props, effectiveOffset, effectiveFill);
 
   useEffect(() => {
     const reqId = ++reqRef.current;
@@ -45,15 +79,14 @@ export function PandaCanvas(props: Props) {
     composeMeme({
       pandaSrc: props.pandaSrc,
       faceSrc: props.faceSrc,
-      faceOffset: props.faceOffset,
+      faceOffset: effectiveOffset,
       rotation: props.rotation,
       flipX: props.flipX,
       size: props.size,
-      faceFill: props.faceFill,
+      faceFill: effectiveFill,
     })
       .then((url) => {
         if (cancelled || reqId !== reqRef.current) return;
-        // dataURL 生成的 img 加载后会在 onLoad 回调里报告尺寸；这里先记 url
         setRendered({ key: targetKey, url, naturalW: 0, naturalH: 0 });
       })
       .catch((e) => {
@@ -63,7 +96,7 @@ export function PandaCanvas(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [targetKey, props.pandaSrc, props.faceSrc, props.faceOffset, props.rotation, props.flipX, props.size, props.faceFill]);
+  }, [targetKey]);
 
   // 频闪修法（user 反馈滚轮调 rotation 时频闪）：
   // 去掉 'stale 时 opacity 0.7' 的渐变 — dataURL 是同步可用的，每次 props 变都先 dim 再渐变到 1
