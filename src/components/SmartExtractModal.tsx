@@ -28,11 +28,11 @@ async function getLandmarker(): Promise<any> {
   if (_landmarker) return _landmarker;
   if (_landmarkerPromise) return _landmarkerPromise;
   _landmarkerPromise = (async () => {
-    // @ts-expect-error - CDN ES module, no types
-    const mod = await import(
-      /* @vite-ignore */
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs'
-    );
+    // CDN ES module 动态加载 — 用变量包字符串避免 TS2307（URL string literal 解析失败）
+    // /* @vite-ignore */ 让 vite 不尝试 transform 外部 URL
+    const mediapipeUrl: string = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs';
+    const dynImport = (u: string): Promise<any> => import(/* @vite-ignore */ u);
+    const mod = await dynImport(mediapipeUrl);
     const vision = await mod.FilesetResolver.forVisionTasks(
       'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm'
     );
@@ -385,7 +385,7 @@ export function SmartExtractModal({ isOpen, onClose, onConfirm, language }: Prop
   const [faceRotation, setFaceRotation] = useState(0);
   const [faceFlipX, setFaceFlipX] = useState(false);
   const [faceFill, setFaceFill] = useState(0.92);
-  const [pandaCanvas, setPandaCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [, setPandaCanvas] = useState<HTMLCanvasElement | null>(null);
   // polygon 拖拽
   const [draggingHandle, setDraggingHandle] = useState(-1);
 
