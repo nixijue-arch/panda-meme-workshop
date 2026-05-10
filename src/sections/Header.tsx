@@ -1,8 +1,9 @@
 import { useMeme } from '@/context/MemeContext';
-import { Languages, Sparkles, Copy, CheckCircle2, Image, PenTool, BookOpen, User } from 'lucide-react';
+import { Languages, Sparkles, Copy, CheckCircle2, Image, PenTool, BookOpen, User, Zap } from 'lucide-react';
 import { useState } from 'react';
+import type { Page } from '@/App';
 
-export function Header({ page, setPage }: { page: 'editor' | 'museum' | 'about'; setPage: (page: 'editor' | 'museum' | 'about') => void }) {
+export function Header({ page, setPage }: { page: Page; setPage: (page: Page) => void }) {
   const { state, dispatch, t } = useMeme();
   const [copied, setCopied] = useState(false);
 
@@ -39,7 +40,16 @@ export function Header({ page, setPage }: { page: 'editor' | 'museum' | 'about';
           <span className="brand-tag">{t('subtitle')}</span>
         </div>
 
-        {/* Page Switcher */}
+        {/* Page Switcher — ⚡ Quick 排第一位（onboarding-friendly），后接 Editor / Museum / About */}
+        <button
+          onClick={() => setPage('quick')}
+          className="header-link"
+          style={page === 'quick' ? { backgroundColor: 'rgba(255,94,0,0.18)', borderColor: '#FF5E00', color: '#FF5E00' } : {}}
+          title={t('quickMode')}
+        >
+          <Zap size={14} />
+          <span className="link-label">{t('quickMode')}</span>
+        </button>
         <button
           onClick={() => setPage('editor')}
           className="header-link"
