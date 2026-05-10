@@ -77,7 +77,17 @@ function ResizeHandle({ dir, onStart }: { dir: ResizeDir; onStart: (e: React.Mou
 function DraggableImage({ element, isSelected, onSelect, onStartEdit }: DraggableImageProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const { dispatch } = useMeme();
-  const rh = (d: ResizeDir) => useResizeHandler(element, d);
+  // 修 hooks rule violation: useResizeHandler 必须在组件顶层 unconditional 调
+  // 之前用 `const rh = (d) => useResizeHandler(element, d)` 在 isSelected 渲染时调 8 次
+  // → 选中前后 hook 调用数不一致 → React 19 strict 直接 throw → 白屏
+  const rhNw = useResizeHandler(element, 'nw');
+  const rhN  = useResizeHandler(element, 'n');
+  const rhNe = useResizeHandler(element, 'ne');
+  const rhW  = useResizeHandler(element, 'w');
+  const rhE  = useResizeHandler(element, 'e');
+  const rhSw = useResizeHandler(element, 'sw');
+  const rhS  = useResizeHandler(element, 's');
+  const rhSe = useResizeHandler(element, 'se');
   return (
     <Draggable
       nodeRef={nodeRef}
@@ -117,14 +127,14 @@ function DraggableImage({ element, isSelected, onSelect, onStartEdit }: Draggabl
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
-            <ResizeHandle dir="nw" onStart={rh('nw')} />
-            <ResizeHandle dir="n"  onStart={rh('n')} />
-            <ResizeHandle dir="ne" onStart={rh('ne')} />
-            <ResizeHandle dir="w"  onStart={rh('w')} />
-            <ResizeHandle dir="e"  onStart={rh('e')} />
-            <ResizeHandle dir="sw" onStart={rh('sw')} />
-            <ResizeHandle dir="s"  onStart={rh('s')} />
-            <ResizeHandle dir="se" onStart={rh('se')} />
+            <ResizeHandle dir="nw" onStart={rhNw} />
+            <ResizeHandle dir="n"  onStart={rhN} />
+            <ResizeHandle dir="ne" onStart={rhNe} />
+            <ResizeHandle dir="w"  onStart={rhW} />
+            <ResizeHandle dir="e"  onStart={rhE} />
+            <ResizeHandle dir="sw" onStart={rhSw} />
+            <ResizeHandle dir="s"  onStart={rhS} />
+            <ResizeHandle dir="se" onStart={rhSe} />
             <button
               onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
               className="absolute flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold text-white pointer-events-auto"
