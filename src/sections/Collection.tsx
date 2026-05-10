@@ -1,19 +1,15 @@
-// Collection — 草图管理板块
+// Collection v2 — 草图管理板块（批量选 + ZIP 导出 + filter）
 // Contributed by PandaHead (https://pandahead.fun · github.com/jokkibtc/panda)
-//
-// 灵感来自 PandaHead 自家 collection.jsx，按 LittleRed 提的"草图管理"形式重新设计：
-// - 读 useQuickFavs 的 localStorage favs (与 QuickMode 共享)
-// - 每张草图 polaroid 风格卡片（白边 + 微倾斜）
-// - 单卡 hover 还原平直 + 显示 actions: 复制 / 下载 / 进编辑器精修 / 删除
-// - 空 state 引导回 Quick Mode
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import JSZip from 'jszip';
 import { useMeme } from '@/context/MemeContext';
 import { ALL_PANDAS, ALL_FACES, getPandaFaceOffset } from '@/data/materials';
 import { useQuickFavs, type QuickFav } from '@/hooks/useQuickFavs';
-import { copyImageToClipboard, downloadImage } from '@/lib/exportImage';
+import { captureNode, copyImageToClipboard, downloadImage } from '@/lib/exportImage';
 import {
   FolderOpen, Copy, Download, Trash2, ArrowRight, Sparkles, Edit2, Check, X,
+  Package, CheckSquare, Square,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import './Collection.css';
@@ -23,18 +19,140 @@ interface CollectionProps {
   onOpenEditor: () => void;
 }
 
+type Filter = 'all' | 'recent';
+
 export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
   const { state, dispatch, generateId } = useMeme();
   const { favs, remove, rename } = useQuickFavs();
   const lang = state.language;
 
-  const items = useMemo<QuickFav[]>(
-    () => Object.values(favs).sort((a, b) => b.ts - a.ts),
-    [favs]
-  );
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState<Filter>('all');
+  const offscreenContainerRef = useRef<HTMLDivElement>(null);
+
+  const items = useMemo<QuickFav[]>(() => {
+    let list = Object.values(favs).sort((a, b) => b.ts - a.ts);
+    if (filter === 'recent') list = list.slice(0, 12);
+    return list;
+  }, [favs, filter]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((s) => {
+      const ns = new Set(s);
+      if (ns.has(id)) ns.delete(id);
+      else ns.add(id);
+      return ns;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => setSelected(new Set(items.map((i) => i.id))), [items]);
+  const clearSelection = useCallback(() => setSelected(new Set()), []);
+
+  const onBatchDelete = useCallback(() => {
+    Array.from(selected).forEach((id) => remove(id));
+    setSelected(new Set());
+    toast.success(lang === 'zh' ? `已删除 ${selected.size} 张` : `Deleted ${selected.size}`);
+  }, [selected, remove, lang]);
+
+  // 批量打 ZIP — 每张草图渲染到离屏 element → captureNode → blob → zip.file
+  const onBatchZip = useCallback(async () => {
+    if (selected.size === 0) return;
+    const itemsToPack = items.filter((it) => selected.has(it.id));
+    if (!itemsToPack.length) return;
+    if (!offscreenContainerRef.current) return;
+
+    toast.info(lang === 'zh' ? `打包 ${itemsToPack.length} 张...` : `Packing ${itemsToPack.length}...`);
+
+    try {
+      const zip = new JSZip();
+      // 离屏渲染容器：每张草图 render → captureNode → 加进 zip
+      const container = offscreenContainerRef.current;
+      for (let i = 0; i < itemsToPack.length; i++) {
+        const fav = itemsToPack[i];
+        const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
+        const face = ALL_FACES.find((f) => f.id === fav.faceId);
+        if (!panda || !face) continue;
+        // 创建临时 preview node
+        const node = document.createElement('div');
+        node.style.cssText = 'position:absolute;width:400px;height:480px;background:#fff;left:-99999px;top:0;';
+        node.innerHTML = `
+          <img src="${panda.src}" style="position:absolute;left:25px;top:25px;width:350px;height:350px;object-fit:contain;" crossorigin="anonymous" />
+          <img src="${face.src}" style="position:absolute;left:${25 + panda.faceOffset.x}px;top:${25 + panda.faceOffset.y}px;width:${panda.faceOffset.w}px;height:${panda.faceOffset.h}px;object-fit:contain;" crossorigin="anonymous" />
+          ${fav.text ? `<div style="position:absolute;left:0;right:0;bottom:18px;text-align:center;font-size:32px;font-weight:700;color:#000;padding:0 16px;line-height:1.2;font-family:${fav.fontFamily || 'sans-serif'};">${fav.text}</div>` : ''}
+        `;
+        container.appendChild(node);
+        // 等图片加载（简单 await frame + 100ms）
+        await new Promise((r) => setTimeout(r, 200));
+        const blob = await captureNode(node);
+        const safeName = (fav.name || fav.text || `panda-${i + 1}`).replace(/[^\w一-龥-]/g, '_').slice(0, 40);
+        zip.file(`${String(i + 1).padStart(2, '0')}-${safeName}.png`, blob);
+        container.removeChild(node);
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `panda-drafts-${Date.now()}.zip`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      toast.success(lang === 'zh' ? `已打包 ${itemsToPack.length} 张 ZIP` : `Packed ${itemsToPack.length} as ZIP`);
+    } catch (e) {
+      toast.error(lang === 'zh' ? `打包失败: ${e instanceof Error ? e.message : 'unknown'}` : `Pack failed`);
+    }
+  }, [selected, items, lang]);
+
+  // 进编辑器精修单张
+  const onSendToEditor = useCallback((fav: QuickFav) => {
+    const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
+    const face = ALL_FACES.find((f) => f.id === fav.faceId);
+    if (!panda || !face) {
+      toast.error(lang === 'zh' ? '素材丢失' : 'Material missing');
+      return;
+    }
+    const offset = getPandaFaceOffset(panda.id);
+    dispatch({ type: 'CLEAR_CANVAS' });
+    dispatch({
+      type: 'ADD_ELEMENT',
+      element: {
+        id: generateId(), type: 'image' as const, src: panda.src, name: panda.id,
+        x: 75, y: 50, width: 350, height: 350,
+        rotation: 0, opacity: 1, zIndex: 0, flipX: false,
+      },
+    });
+    setTimeout(() => {
+      dispatch({
+        type: 'ADD_ELEMENT',
+        element: {
+          id: generateId(), type: 'image' as const, src: face.src, name: face.id,
+          x: offset.x, y: offset.y, width: offset.w, height: offset.h,
+          rotation: 0, opacity: 1, zIndex: 1, flipX: false,
+        },
+      });
+      if (fav.text) {
+        dispatch({
+          type: 'ADD_ELEMENT',
+          element: {
+            id: generateId(), type: 'text' as const, text: fav.text,
+            x: 60, y: 410, width: 380, height: 56,
+            rotation: 0, opacity: 1, zIndex: 2,
+            fontFamily: fav.fontFamily || 'sans-serif',
+            fontSize: 32, fontWeight: 'bold' as const,
+            textAlign: 'center' as const,
+            fillColor: '#000000', strokeColor: '#ffffff', strokeWidth: 0,
+          },
+        });
+      }
+      onOpenEditor();
+    }, 30);
+  }, [dispatch, generateId, lang, onOpenEditor]);
 
   // 空 state
-  if (items.length === 0) {
+  if (Object.keys(favs).length === 0) {
     return (
       <div className="col-root">
         <div className="col-empty">
@@ -50,58 +168,6 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
     );
   }
 
-  // 进编辑器精修：dispatch 3 elements + 跳编辑器
-  const onSendToEditor = useCallback((fav: QuickFav) => {
-    const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
-    const face = ALL_FACES.find((f) => f.id === fav.faceId);
-    if (!panda || !face) {
-      toast.error(lang === 'zh' ? '素材丢失' : 'Material missing');
-      return;
-    }
-    const offset = getPandaFaceOffset(panda.id);
-    dispatch({ type: 'CLEAR_CANVAS' });
-    dispatch({
-      type: 'ADD_ELEMENT',
-      element: {
-        id: generateId(),
-        type: 'image' as const,
-        src: panda.src, name: panda.id,
-        x: 75, y: 50, width: 350, height: 350,
-        rotation: 0, opacity: 1, zIndex: 0, flipX: false,
-      },
-    });
-    setTimeout(() => {
-      dispatch({
-        type: 'ADD_ELEMENT',
-        element: {
-          id: generateId(),
-          type: 'image' as const,
-          src: face.src, name: face.id,
-          x: offset.x, y: offset.y, width: offset.w, height: offset.h,
-          rotation: 0, opacity: 1, zIndex: 1, flipX: false,
-        },
-      });
-      if (fav.text) {
-        dispatch({
-          type: 'ADD_ELEMENT',
-          element: {
-            id: generateId(),
-            type: 'text' as const,
-            text: fav.text,
-            x: 60, y: 410, width: 380, height: 56,
-            rotation: 0, opacity: 1, zIndex: 2,
-            fontFamily: fav.fontFamily || 'sans-serif',
-            fontSize: 32, fontWeight: 'bold' as const,
-            textAlign: 'center' as const,
-            fillColor: '#000000', strokeColor: '#ffffff',
-            strokeWidth: 0,
-          },
-        });
-      }
-      onOpenEditor();
-    }, 30);
-  }, [dispatch, generateId, lang, onOpenEditor]);
-
   return (
     <div className="col-root">
       <div className="col-hero">
@@ -109,11 +175,23 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
           <FolderOpen size={20} color="#FF5E00" />
           <h2>{lang === 'zh' ? '我的草图' : 'My Drafts'}</h2>
           <span className="col-count">{items.length}</span>
+          <div style={{ flex: 1 }} />
+          <div className="col-filter">
+            {(['all', 'recent'] as Filter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={'col-filter-btn ' + (filter === f ? 'col-filter-btn-on' : '')}
+              >
+                {lang === 'zh' ? (f === 'all' ? '全部' : '最近') : (f === 'all' ? 'All' : 'Recent')}
+              </button>
+            ))}
+          </div>
         </div>
         <p className="col-hero-sub">
           {lang === 'zh'
-            ? '点开任意一张可改名 / 进编辑器精修 / 复制 / 下载 / 删除'
-            : 'Click any draft to rename / open in editor / copy / download / delete'}
+            ? '点 ☐ 多选 → 批量打包 ZIP / 删除；卡片 hover 看 actions'
+            : 'Click ☐ to multi-select → batch ZIP / delete; hover card for actions'}
         </p>
       </div>
 
@@ -123,6 +201,8 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
             key={fav.id}
             fav={fav}
             lang={lang}
+            isSelected={selected.has(fav.id)}
+            onToggleSelect={() => toggleSelect(fav.id)}
             onDelete={() => {
               remove(fav.id);
               toast.success(lang === 'zh' ? '已删除' : 'Deleted');
@@ -135,6 +215,32 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
           />
         ))}
       </div>
+
+      {/* 离屏渲染容器（ZIP 打包时塞临时 preview node） */}
+      <div ref={offscreenContainerRef} style={{ position: 'absolute', left: -99999, top: 0 }} />
+
+      {/* Floating action bar — 选中时浮动 */}
+      {selected.size > 0 && (
+        <div className="col-action-bar">
+          <span className="col-bar-count">
+            {lang === 'zh' ? `已选 ${selected.size}` : `${selected.size} selected`}
+          </span>
+          <span className="col-bar-divider" />
+          <button onClick={selectAll} className="col-bar-btn">
+            {lang === 'zh' ? '全选' : 'All'}
+          </button>
+          <button onClick={clearSelection} className="col-bar-btn">
+            {lang === 'zh' ? '取消' : 'Clear'}
+          </button>
+          <span className="col-bar-divider" />
+          <button onClick={onBatchZip} className="col-bar-btn col-bar-btn-primary">
+            <Package size={14} /> {lang === 'zh' ? '打包 ZIP' : 'Pack ZIP'}
+          </button>
+          <button onClick={onBatchDelete} className="col-bar-btn col-bar-btn-danger">
+            <Trash2 size={14} /> {lang === 'zh' ? '删除' : 'Delete'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -142,23 +248,24 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
 interface DraftCardProps {
   fav: QuickFav;
   lang: 'zh' | 'en';
+  isSelected: boolean;
+  onToggleSelect: () => void;
   onDelete: () => void;
   onRename: (name: string) => void;
   onSendToEditor: () => void;
 }
 
-function DraftCard({ fav, lang, onDelete, onRename, onSendToEditor }: DraftCardProps) {
+function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, onSendToEditor }: DraftCardProps) {
   const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
   const face = ALL_FACES.find((f) => f.id === fav.faceId);
   const previewRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState(fav.name || fav.text || '');
 
-  // 微倾斜（手账感）— 基于 fav.id hash 稳定不随机
   const tilt = useMemo(() => {
     let h = 0;
     for (const c of fav.id) h = (h * 31 + c.charCodeAt(0)) | 0;
-    return ((h % 7) - 3) * 0.8; // -2.4° ~ +2.4°
+    return ((h % 7) - 3) * 0.8;
   }, [fav.id]);
 
   if (!panda || !face) {
@@ -169,7 +276,6 @@ function DraftCard({ fav, lang, onDelete, onRename, onSendToEditor }: DraftCardP
     );
   }
 
-  // panda body 在 polaroid 内显示 200×200，face 按 200/350 比例缩放
   const SCALE = 200 / 350;
   const faceStyle = {
     left: Math.round(panda.faceOffset.x * SCALE),
@@ -182,7 +288,7 @@ function DraftCard({ fav, lang, onDelete, onRename, onSendToEditor }: DraftCardP
     if (!previewRef.current) return;
     try {
       await copyImageToClipboard(previewRef.current);
-      toast.success(lang === 'zh' ? '已复制到剪贴板' : 'Copied');
+      toast.success(lang === 'zh' ? '已复制' : 'Copied');
     } catch {
       toast.error(lang === 'zh' ? '复制失败' : 'Copy failed');
     }
@@ -206,7 +312,16 @@ function DraftCard({ fav, lang, onDelete, onRename, onSendToEditor }: DraftCardP
   };
 
   return (
-    <div className="draft-card" style={{ transform: `rotate(${tilt}deg)` }}>
+    <div className={'draft-card ' + (isSelected ? 'draft-card-selected' : '')} style={{ transform: `rotate(${tilt}deg)` }}>
+      {/* 选择框 */}
+      <button
+        className={'draft-select-toggle ' + (isSelected ? 'draft-select-toggle-on' : '')}
+        onClick={onToggleSelect}
+        title={lang === 'zh' ? '选择' : 'Select'}
+      >
+        {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+      </button>
+
       <div ref={previewRef} className="draft-preview">
         <img src={panda.src} alt={panda.id} draggable={false} className="draft-panda-img" />
         <img src={face.src} alt={face.id} draggable={false} className="draft-face-img" style={faceStyle} />

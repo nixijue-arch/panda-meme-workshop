@@ -1,9 +1,14 @@
-// QuickMode — 简易"点选 + 立即出图"模式
+// QuickMode v2 — 简易"点选 + 立即出图"模式（完整移植 PandaHead 功能）
 // Contributed by PandaHead (https://pandahead.fun · github.com/jokkibtc/panda)
 //
-// 设计哲学：3 步出图（选熊猫头 → 选脸 → 打字），跟编辑器拖拽流程互补
+// v2 增强 (vs v1)：
+//   + face rotation 状态 + RotationDot 拖动条 + 在 preview 上滚轮微调
+//   + face 水平翻转 (flip-h) + reset 按钮
+//   + 文字语言池选择 (双 / 中 / EN)
+//   + 收藏后弹 NamePopover 改名
+//
 // 集成方式：独立 page，不入侵编辑器内部 LeftSidebar / RightSidebar / CanvasArea
-// "进编辑器精修"按钮 dispatch ADD_ELEMENT × 3 → setPage('editor')，无缝转流
+// "进编辑器精修"按钮 dispatch ADD_ELEMENT × 3 → setPage('editor')
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMeme } from '@/context/MemeContext';
@@ -13,6 +18,7 @@ import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
 import { copyImageToClipboard, downloadImage } from '@/lib/exportImage';
 import {
   Sparkles, Copy, Download, Heart, Wand2, ArrowRight, Type,
+  RotateCcw, FlipHorizontal, Check, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import './QuickMode.css';
@@ -21,6 +27,12 @@ const FONT_OPTIONS = [
   { id: 'default', labelKey: 'quickFontDefault' as const, stack: '"Noto Sans SC", system-ui, sans-serif' },
   { id: 'serif',   labelKey: 'quickFontSerif'   as const, stack: '"Songti SC", "STSong", "SimSun", serif' },
   { id: 'mono',    labelKey: 'quickFontMono'    as const, stack: 'ui-monospace, SFMono-Regular, "Noto Sans SC", monospace' },
+];
+
+const TEXT_LANG_OPTIONS = [
+  { id: 'both' as const, label: '双' },
+  { id: 'zh'   as const, label: '中' },
+  { id: 'en'   as const, label: 'EN' },
 ];
 
 interface QuickModeProps {
@@ -37,9 +49,22 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
     () => (lang === 'zh' ? RANDOM_TEXTS_ZH : RANDOM_TEXTS_EN)[0] ?? ''
   );
   const [fontKey, setFontKey] = useState<string>('default');
+  const [textLang, setTextLang] = useState<'both' | 'zh' | 'en'>(() => {
+    try { return (localStorage.getItem('pmw-quick-textlang') as 'both' | 'zh' | 'en') || 'both'; }
+    catch { return 'both'; }
+  });
+  const [faceRotation, setFaceRotation] = useState(0);
+  const [faceFlipX, setFaceFlipX] = useState(false);
+  const [namePopoverOpen, setNamePopoverOpen] = useState(false);
+  const [pendingFavName, setPendingFavName] = useState('');
+
+  useEffect(() => {
+    try { localStorage.setItem('pmw-quick-textlang', textLang); } catch { /* ignore */ }
+  }, [textLang]);
 
   const previewRef = useRef<HTMLDivElement>(null);
-  const { favs, toggle } = useQuickFavs();
+  const previewWrapRef = useRef<HTMLDivElement>(null);
+  const { favs, toggle, rename } = useQuickFavs();
 
   const panda = useMemo(
     () => PANDA_HEADS.find((p) => p.id === pandaId) ?? PANDA_HEADS[0],
@@ -53,8 +78,8 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
   // -------- actions --------
 
   const onRandomText = useCallback(() => {
-    setText((cur) => pickRandomText(lang === 'zh' ? 'zh' : 'en', cur));
-  }, [lang]);
+    setText((cur) => pickRandomText(textLang, cur));
+  }, [textLang]);
 
   const onRandomize = useCallback(() => {
     const otherPandas = PANDA_HEADS.filter((p) => p.id !== pandaId);
@@ -63,8 +88,17 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
     const nf = otherFaces.length ? otherFaces : FACES;
     setPandaId(np[Math.floor(Math.random() * np.length)].id);
     setFaceId(nf[Math.floor(Math.random() * nf.length)].id);
-    setText((cur) => pickRandomText(lang === 'zh' ? 'zh' : 'en', cur));
-  }, [pandaId, faceId, lang]);
+    setText((cur) => pickRandomText(textLang, cur));
+    setFaceRotation(0);
+    setFaceFlipX(false);
+  }, [pandaId, faceId, textLang]);
+
+  const onResetTransform = useCallback(() => {
+    setFaceRotation(0);
+    setFaceFlipX(false);
+  }, []);
+
+  const onFlipH = useCallback(() => setFaceFlipX((f) => !f), []);
 
   const onCopy = useCallback(async () => {
     if (!previewRef.current) return;
@@ -89,11 +123,22 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
   const onFav = useCallback(() => {
     const wasOn = isFavored;
     toggle({ id: favKey, pandaId, faceId, text, fontFamily: fontKey });
-    toast.success(wasOn ? t('quickUnsaved') : t('quickSaved'));
+    if (wasOn) {
+      toast.info(t('quickUnsaved'));
+    } else {
+      // 弹 NamePopover 让用户改名（可跳过）
+      setPendingFavName(text || '');
+      setNamePopoverOpen(true);
+      toast.success(t('quickSaved'));
+    }
   }, [isFavored, toggle, favKey, pandaId, faceId, text, fontKey, t]);
 
+  const onSaveName = useCallback((name: string) => {
+    if (name.trim()) rename(favKey, name.trim());
+    setNamePopoverOpen(false);
+  }, [favKey, rename]);
+
   const onToEditor = useCallback(() => {
-    // 把当前选择 dispatch 成编辑器 elements，然后切到编辑器
     const pandaEl = {
       id: generateId(),
       type: 'image' as const,
@@ -112,7 +157,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
         src: face.src,
         name: face.id,
         x: offset.x, y: offset.y, width: offset.w, height: offset.h,
-        rotation: 0, opacity: 1, zIndex: 1, flipX: false,
+        rotation: faceRotation, opacity: 1, zIndex: 1, flipX: faceFlipX,
       };
       dispatch({ type: 'ADD_ELEMENT', element: faceEl });
       if (text.trim()) {
@@ -123,18 +168,16 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
           x: 60, y: 410, width: 380, height: 56,
           rotation: 0, opacity: 1, zIndex: 2,
           fontFamily: fontStack,
-          fontSize: 32,
-          fontWeight: 'bold' as const,
+          fontSize: 32, fontWeight: 'bold' as const,
           textAlign: 'center' as const,
-          fillColor: '#000000',
-          strokeColor: '#ffffff',
+          fillColor: '#000000', strokeColor: '#ffffff',
           strokeWidth: 0,
         };
         dispatch({ type: 'ADD_ELEMENT', element: textEl });
       }
       onOpenEditor();
     }, 30);
-  }, [dispatch, generateId, panda, face, text, fontStack, onOpenEditor]);
+  }, [dispatch, generateId, panda, face, text, faceRotation, faceFlipX, fontStack, onOpenEditor]);
 
   // 键盘快捷键
   useEffect(() => {
@@ -149,7 +192,39 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onRandomize, onCopy, onDownload]);
 
+  // Preview 上滚轮微调 face rotation (rAF throttle)
+  useEffect(() => {
+    const el = previewWrapRef.current;
+    if (!el) return;
+    let pending = 0;
+    let rafId = 0;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      pending += e.deltaY > 0 ? 5 : -5;
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        const d = pending;
+        pending = 0;
+        rafId = 0;
+        setFaceRotation((r) => {
+          let v = r + d;
+          while (v > 180) v -= 360;
+          while (v < -180) v += 360;
+          return v;
+        });
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, []);
+
   // -------- render --------
+
+  // face transform style (rotation + flip)
+  const faceTransform = `${faceFlipX ? 'scaleX(-1) ' : ''}rotate(${faceRotation}deg)`;
 
   return (
     <div className="quickmode-root">
@@ -161,13 +236,9 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
         <p className="quickmode-hero-sub">{t('quickModeSubtitle')}</p>
       </div>
 
-      {/* Preview */}
-      <div className="quickmode-preview-wrap">
-        <div
-          ref={previewRef}
-          className="quickmode-preview"
-          style={{ fontFamily: fontStack }}
-        >
+      {/* Preview — 滚轮在这里微调 face rotation */}
+      <div className="quickmode-preview-wrap" ref={previewWrapRef}>
+        <div ref={previewRef} className="quickmode-preview" style={{ fontFamily: fontStack }}>
           <img
             src={panda.src} alt={panda.id} draggable={false}
             className="qm-panda-img"
@@ -180,6 +251,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
               top: 25 + panda.faceOffset.y,
               width: panda.faceOffset.w,
               height: panda.faceOffset.h,
+              transform: faceTransform,
             }}
           />
           {text && (
@@ -198,10 +270,20 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
         <button onClick={onDownload} className="qm-btn" title="D">
           <Download size={14} /> {t('quickDownload')}
         </button>
-        <button onClick={onFav} className={'qm-btn ' + (isFavored ? 'qm-btn-fav-on' : '')}>
-          <Heart size={14} fill={isFavored ? '#FF5E00' : 'none'} />
-          {t('quickFav')}
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button onClick={onFav} className={'qm-btn ' + (isFavored ? 'qm-btn-fav-on' : '')}>
+            <Heart size={14} fill={isFavored ? '#FF5E00' : 'none'} />
+            {t('quickFav')}
+          </button>
+          {namePopoverOpen && (
+            <NamePopover
+              initial={pendingFavName}
+              onSave={onSaveName}
+              onClose={() => setNamePopoverOpen(false)}
+              placeholder={lang === 'zh' ? '起个名字...' : 'Name it...'}
+            />
+          )}
+        </div>
         <span className="qm-divider" />
         <button onClick={onRandomize} className="qm-btn qm-btn-accent" title="R">
           <Wand2 size={14} /> {t('quickRandom')}
@@ -209,6 +291,24 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
         <button onClick={onToEditor} className="qm-btn qm-btn-ghost">
           {t('quickToEditor')} <ArrowRight size={14} />
         </button>
+      </div>
+
+      {/* Face transform row: rotation dot + flip + reset */}
+      <div className="quickmode-transform-row">
+        <RotationDot value={faceRotation} onChange={setFaceRotation} />
+        <button onClick={onFlipH} className={'qm-icon-btn ' + (faceFlipX ? 'qm-icon-btn-on' : '')} title={lang === 'zh' ? '水平翻转' : 'Flip horizontal'}>
+          <FlipHorizontal size={16} />
+        </button>
+        <button onClick={onResetTransform} className="qm-icon-btn" title={lang === 'zh' ? '重置' : 'Reset'}>
+          <RotateCcw size={14} />
+        </button>
+        <span className="qm-rotation-display">
+          {faceRotation > 0 ? '+' : ''}{faceRotation}°
+          {faceFlipX && ' ⇋'}
+        </span>
+      </div>
+      <div className="quickmode-hint">
+        {lang === 'zh' ? '拖动圆点 · 在预览图上滚轮微调' : 'Drag dot · scroll wheel over preview'}
       </div>
 
       {/* Panda head rail */}
@@ -231,18 +331,25 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
         lang={lang}
       />
 
-      {/* Text + font */}
+      {/* Text + lang + font */}
       <div className="quickmode-text-row">
         <div className="qm-text-label">
           <Type size={14} /> {t('quickText')}
         </div>
-        <button
-          onClick={onRandomText}
-          className="qm-icon-btn"
-          title={t('quickRandomText')}
-        >
+        <button onClick={onRandomText} className="qm-icon-btn" title={t('quickRandomText')}>
           <Wand2 size={14} />
         </button>
+        <div className="qm-textlang-toggle">
+          {TEXT_LANG_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setTextLang(opt.id)}
+              className={'qm-textlang-btn ' + (textLang === opt.id ? 'qm-textlang-btn-on' : '')}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <input
           type="text"
           value={text}
@@ -310,6 +417,103 @@ function RailSection({ emoji, title, items, value, onChange, lang }: RailSection
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// RotationDot — 拖动圆点条调 face 旋转 (-180 ~ 180 度)
+function RotationDot({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const updateFromX = useCallback((clientX: number) => {
+    if (!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, x / rect.width));
+    onChange(Math.round((ratio - 0.5) * 360));
+  }, [onChange]);
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setDragging(true);
+    updateFromX(e.clientX);
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (!e.touches || !e.touches[0]) return;
+    setDragging(true);
+    updateFromX(e.touches[0].clientX);
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMouseMove = (e: MouseEvent) => updateFromX(e.clientX);
+    const onMouseUp = () => setDragging(false);
+    const onTouchMove = (e: TouchEvent) => {
+      if (!e.touches || !e.touches[0]) return;
+      e.preventDefault();
+      updateFromX(e.touches[0].clientX);
+    };
+    const onTouchEnd = () => setDragging(false);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [dragging, updateFromX]);
+
+  const dotPercent = 50 + (value / 360) * 100;
+
+  return (
+    <div ref={trackRef} onMouseDown={onMouseDown} onTouchStart={onTouchStart}
+      className="qm-rotation-track">
+      <div className="qm-rotation-track-bar" />
+      <div className="qm-rotation-track-center" />
+      <div className="qm-rotation-dot" style={{ left: `${dotPercent}%` }}>
+        <div className="qm-rotation-dot-arrow" style={{ transform: `rotate(${value}deg)` }} />
+      </div>
+    </div>
+  );
+}
+
+// NamePopover — 收藏后弹小 input 改名
+function NamePopover({ initial, onSave, onClose, placeholder }: {
+  initial: string;
+  onSave: (name: string) => void;
+  onClose: () => void;
+  placeholder: string;
+}) {
+  const [v, setV] = useState(initial);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [onClose]);
+
+  return (
+    <div ref={ref} className="qm-name-popover">
+      <input
+        autoFocus
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onSave(v.trim());
+          if (e.key === 'Escape') onClose();
+        }}
+        placeholder={placeholder}
+        className="qm-name-input"
+      />
+      <button onClick={() => onSave(v.trim())} className="qm-name-ok"><Check size={12} /></button>
+      <button onClick={onClose} className="qm-name-cancel"><X size={12} /></button>
     </div>
   );
 }

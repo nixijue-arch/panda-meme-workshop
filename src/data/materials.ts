@@ -132,3 +132,14 @@ export const ALL_FACES: Material[] = [...FACES, ...PANDAHEAD_FACES];
 
 // 把 PandaHead panda 的 faceOffset 也注入 lookup map
 PANDAHEAD_PANDAS.forEach(p => { pandaOffsetMap[p.id] = p.faceOffset; });
+
+// ===== align_panda.py v3 自动算的 faceOffset overrides =====
+// 修复手动 5-preset 不准的 24 panda + panda-new-* 系列 face 落点
+import { PANDA_ALIGN_OVERRIDES } from './panda-align-overrides';
+PANDA_HEADS.forEach(p => {
+  const override = PANDA_ALIGN_OVERRIDES[p.id];
+  if (override) {
+    p.faceOffset = override;
+    pandaOffsetMap[p.id] = override;
+  }
+});

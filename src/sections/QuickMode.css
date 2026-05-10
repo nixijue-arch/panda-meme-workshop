@@ -325,3 +325,161 @@
     gap: 6px;
   }
 }
+
+/* === v2 增强 === */
+
+/* Face transform row */
+.quickmode-transform-row {
+  max-width: 720px;
+  margin: 16px auto 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.quickmode-hint {
+  text-align: center;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 18px;
+}
+
+/* RotationDot */
+.qm-rotation-track {
+  position: relative;
+  width: 240px;
+  height: 36px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+.qm-rotation-track-bar {
+  position: absolute;
+  top: 50%;
+  left: 0; right: 0;
+  height: 4px;
+  background: #3a3a3a;
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+.qm-rotation-track-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px; height: 14px;
+  background: #666;
+  transform: translate(-50%, -50%);
+}
+.qm-rotation-dot {
+  position: absolute;
+  top: 50%;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: #FF5E00;
+  border: 2px solid #ff7325;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(255, 94, 0, 0.4);
+  transition: left 60ms ease-out;
+}
+.qm-rotation-dot:active { cursor: grabbing; }
+.qm-rotation-dot-arrow {
+  width: 2px; height: 14px;
+  background: #fff;
+  border-radius: 1px;
+  transform-origin: center;
+}
+
+/* qm-icon-btn extra states */
+.qm-icon-btn-on {
+  background: rgba(255, 94, 0, 0.18) !important;
+  border-color: #FF5E00 !important;
+  color: #FF5E00 !important;
+}
+
+/* rotation 数值显示 */
+.qm-rotation-display {
+  min-width: 50px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ccc;
+}
+
+/* 文字语言切换（双 / 中 / EN） */
+.qm-textlang-toggle {
+  display: inline-flex;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #2a2a2a;
+  flex-shrink: 0;
+}
+.qm-textlang-btn {
+  padding: 0 10px;
+  height: 36px;
+  min-width: 32px;
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 160ms ease;
+  font-family: inherit;
+}
+.qm-textlang-btn:hover { color: #ccc; }
+.qm-textlang-btn-on {
+  background: #FF5E00;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* NamePopover (收藏后弹) */
+.qm-name-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #2a2a2a;
+  border: 1px solid #FF5E00;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  width: 240px;
+}
+.qm-name-input {
+  flex: 1;
+  height: 26px;
+  padding: 0 8px;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+}
+.qm-name-input:focus { border-color: #FF5E00; }
+.qm-name-ok, .qm-name-cancel {
+  width: 26px; height: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid #555;
+  color: #888;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.qm-name-ok:hover { color: #00CC66; border-color: #00CC66; }
+.qm-name-cancel:hover { color: #E97B7B; border-color: #E97B7B; }
