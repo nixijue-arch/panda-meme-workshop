@@ -4,10 +4,11 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { ImageElement, TextElement, MemeElement } from '@/context/MemeContext';
 import { Download, Trash2, Shuffle, Image, MessageCircle, Sparkles, Settings2, Upload, X, ChevronUp, Camera, Type, AlignLeft, AlignCenter, AlignRight, Bold, Heart } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import { PANDA_HEADS, FACES, ALL_PANDAS, ALL_FACES, getPandaFaceOffset } from '@/data/materials';
+import { PANDA_HEADS, FACES, ALL_PANDAS, ALL_FACES, getPandaFaceOffset, getLivePandaFaceOffset } from '@/data/materials';
 import { PhotoCropModal } from '@/components/PhotoCropModal';
 import { SmartExtractModal } from '@/components/SmartExtractModal';
 import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
+import { calcEditorFaceLayout } from '@/lib/composeMeme';
 import { toast } from 'sonner';
 
 const ZH_TEXTS = ['在？V我50','我不做人啦！','就这？','你不对劲','尊嘟假嘟','蚌埠住了','这波在大气层','笑死我了','开始你的表演','啊对对对','我真的会谢','无所谓我会出手','这就是中国速度','啊这','你在教我做事？','问题不大','我直接自信','这很合理','有内味了','气氛到这了','家人们谁懂啊','这班不上也罢','我说的是真的','这就是格局','我是废物','我裂开了','太对了哥','反杀反杀！','？？？','我先run了','上班哪有不疯的','这谁顶得住','差不多得了','这合理吗','我已经报警了','再装我就哭了','不可能的','你礼貌吗','给跪了','打工人打工魂','开摆','绷不住了','汗流浃背了','人间真实','笑不活了','绝了','6','小丑竟是我自己','速速撤退','毁灭吧','一键三连','下次一定','高产似那啥','cargo降落伞','我太难了','高手过招','有点意思','不太对劲','这就是实力','啊对对对','梦幻联动','血赚','亏麻了','原地起飞','给我整不会了','离谱','抽象','狠狠拿捏了','重拳出击','纯路人','理性讨论','有一说一','确实','龟龟','吓得我水都喷了','很有精神','一般般啦','祖安钢琴家','这波我必C','你完了','听我狡辩','满脸写着开心','为什么总是我','麻了','我悟了','佛了','杠精退散','老实人','正能量嗷','格局打开','毕竟我也不是什么恶魔','说出来你可能不信','此时一位靓仔路过','先赌为敬','重在参与','赢了会所嫩模','输了下海干活','问题不大'];
@@ -104,18 +105,25 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
 
   const handleClearCanvas = () => dispatch({ type: 'CLEAR_CANVAS' });
 
-  const handleRandomCombo = () => {
-    const randomPanda = PANDA_HEADS[Math.floor(Math.random() * PANDA_HEADS.length)];
-    const randomFace = FACES[Math.floor(Math.random() * FACES.length)];
+  // 随机组合 — 跟 QuickMode 同逻辑：face 用 calcEditorFaceLayout 自动定位到 panda 锚点
+  // 而且素材池用 ALL_PANDAS/ALL_FACES（70+132 全集），不再只用 PMW 原生 24+67
+  const handleRandomCombo = async () => {
+    const randomPanda = ALL_PANDAS[Math.floor(Math.random() * ALL_PANDAS.length)];
+    const randomFace = ALL_FACES[Math.floor(Math.random() * ALL_FACES.length)];
     const texts = state.language === 'zh' ? ZH_TEXTS : EN_TEXTS;
     const randomText = texts[Math.floor(Math.random() * texts.length)];
-    const offset = randomPanda.faceOffset;
+    // 算 face 在编辑器画布的 content_center 对齐位置（跟快速生图一致）
+    const faceLayout = await calcEditorFaceLayout({
+      pandaSrc: randomPanda.src,
+      faceSrc: randomFace.src,
+      faceOffset350: getLivePandaFaceOffset(randomPanda),
+    });
     dispatch({ type: 'CLEAR_CANVAS' });
     setTimeout(() => {
       const pandaEl: ImageElement = { id: generateId(), type: 'image', src: randomPanda.src, name: randomPanda.id, x: 75, y: 50, width: 350, height: 350, rotation: 0, opacity: 1, zIndex: 0, flipX: false };
       dispatch({ type: 'ADD_ELEMENT', element: pandaEl });
       setTimeout(() => {
-        const faceEl: ImageElement = { id: generateId(), type: 'image', src: randomFace.src, name: randomFace.id, x: offset.x, y: offset.y, width: offset.w, height: offset.h, rotation: 0, opacity: 1, zIndex: 1, flipX: false };
+        const faceEl: ImageElement = { id: generateId(), type: 'image', src: randomFace.src, name: randomFace.id, x: faceLayout.x, y: faceLayout.y, width: faceLayout.width, height: faceLayout.height, rotation: 0, opacity: 1, zIndex: 1, flipX: false };
         dispatch({ type: 'ADD_ELEMENT', element: faceEl });
         setTimeout(() => {
           const textEl: TextElement = { id: generateId(), type: 'text', text: randomText, x: 50, y: 440, width: 400, height: 50, rotation: 0, opacity: 1, zIndex: 10, fontFamily: '"Noto Sans SC", "Impact", sans-serif', fontSize: 36, fontWeight: 'bold', textAlign: 'center', fillColor: '#FFFFFF', strokeColor: '#000000', strokeWidth: 3 };
@@ -126,29 +134,57 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
     if (isMobile) setSheetOpen(false);
   };
 
-  const handleSwitchImage = () => {
+  // 一键换图 — 切 panda 时 face 跟着重定位（用新 panda 的锚点）
+  const handleSwitchImage = async () => {
     const currentPanda = state.elements.find(isPanda) as ImageElement | undefined;
     const currentFace = state.elements.find(isFace) as ImageElement | undefined;
-    if (currentPanda) {
-      const otherPandas = PANDA_HEADS.filter(p => p.id !== currentPanda.name);
-      if (otherPandas.length > 0) {
-        const newPanda = otherPandas[Math.floor(Math.random() * otherPandas.length)];
-        dispatch({ type: 'UPDATE_ELEMENT', id: currentPanda.id, updates: { src: newPanda.src, name: newPanda.id } });
-      }
+    if (!currentPanda && !currentFace) { handleRandomCombo(); return; }
+
+    // 决定新的 panda + face
+    const newPanda = currentPanda
+      ? (() => {
+          const others = ALL_PANDAS.filter(p => p.id !== currentPanda.name);
+          return others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null;
+        })()
+      : null;
+    const newFace = currentFace
+      ? (() => {
+          const others = ALL_FACES.filter(f => f.id !== currentFace.name);
+          return others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null;
+        })()
+      : null;
+
+    // 切 panda
+    if (newPanda && currentPanda) {
+      dispatch({ type: 'UPDATE_ELEMENT', id: currentPanda.id, updates: { src: newPanda.src, name: newPanda.id } });
     }
-    if (currentFace) {
-      const otherFaces = FACES.filter(f => f.id !== currentFace.name);
-      if (otherFaces.length > 0) {
-        const newFace = otherFaces[Math.floor(Math.random() * otherFaces.length)];
+    // 切 face — 同时 face 元素位置/大小重新按 panda anchor 算
+    if (newFace && currentFace) {
+      const anchorPanda = newPanda ?? ALL_PANDAS.find(p => p.id === currentPanda?.name);
+      if (anchorPanda) {
+        const layout = await calcEditorFaceLayout({
+          pandaSrc: anchorPanda.src,
+          faceSrc: newFace.src,
+          faceOffset350: getLivePandaFaceOffset(anchorPanda),
+        });
+        dispatch({ type: 'UPDATE_ELEMENT', id: currentFace.id, updates: { src: newFace.src, name: newFace.id, x: layout.x, y: layout.y, width: layout.width, height: layout.height } });
+      } else {
         dispatch({ type: 'UPDATE_ELEMENT', id: currentFace.id, updates: { src: newFace.src, name: newFace.id } });
       }
     }
-    if (!currentPanda && !currentFace) { handleRandomCombo(); return; }
+    // 有 panda 没 face — 加一个随机 face 在 anchor 位置
     if (currentPanda && !currentFace) {
-      const offset = getPandaFaceOffset(currentPanda.name);
-      const newFace = FACES[Math.floor(Math.random() * FACES.length)];
-      const faceEl: ImageElement = { id: generateId(), type: 'image', src: newFace.src, name: newFace.id, x: offset.x, y: offset.y, width: offset.w, height: offset.h, rotation: 0, opacity: 1, zIndex: 1, flipX: false };
-      dispatch({ type: 'ADD_ELEMENT', element: faceEl });
+      const anchorPanda = ALL_PANDAS.find(p => p.id === currentPanda.name);
+      const randomFace = ALL_FACES[Math.floor(Math.random() * ALL_FACES.length)];
+      if (anchorPanda) {
+        const layout = await calcEditorFaceLayout({
+          pandaSrc: anchorPanda.src,
+          faceSrc: randomFace.src,
+          faceOffset350: getLivePandaFaceOffset(anchorPanda),
+        });
+        const faceEl: ImageElement = { id: generateId(), type: 'image', src: randomFace.src, name: randomFace.id, x: layout.x, y: layout.y, width: layout.width, height: layout.height, rotation: 0, opacity: 1, zIndex: 1, flipX: false };
+        dispatch({ type: 'ADD_ELEMENT', element: faceEl });
+      }
     }
   };
 

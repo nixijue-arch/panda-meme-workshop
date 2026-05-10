@@ -208,34 +208,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onRandomize, onCopy, onDownload]);
 
-  // Preview 上滚轮微调 face rotation (rAF throttle)
-  useEffect(() => {
-    const el = previewWrapRef.current;
-    if (!el) return;
-    let pending = 0;
-    let rafId = 0;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      pending += e.deltaY > 0 ? 5 : -5;
-      if (rafId) return;
-      rafId = requestAnimationFrame(() => {
-        const d = pending;
-        pending = 0;
-        rafId = 0;
-        setFaceRotation((r) => {
-          let v = r + d;
-          while (v > 180) v -= 360;
-          while (v < -180) v += 360;
-          return v;
-        });
-      });
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', onWheel);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, []);
+  // (滚轮调 face rotation 已删 — 用户反馈页面滚轮误触干扰，改为只能拖圆点旋转)
 
   // -------- render --------
 
@@ -318,7 +291,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
         </span>
       </div>
       <div className="quickmode-hint">
-        {lang === 'zh' ? '拖动圆点 · 在预览图上滚轮微调' : 'Drag dot · scroll wheel over preview'}
+        {lang === 'zh' ? '拖动圆点旋转 face' : 'Drag dot to rotate face'}
       </div>
 
       {/* Panda head rail */}
