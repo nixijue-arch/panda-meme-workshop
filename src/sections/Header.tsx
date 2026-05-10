@@ -1,5 +1,5 @@
 import { useMeme } from '@/context/MemeContext';
-import { Languages, Sparkles, Copy, CheckCircle2, Image, PenTool, BookOpen, User, Zap, FolderOpen } from 'lucide-react';
+import { Languages, Sparkles, Copy, CheckCircle2, Image, PenTool, BookOpen, User, Zap, FolderOpen, Crosshair } from 'lucide-react';
 import { useState } from 'react';
 import type { Page } from '@/App';
 
@@ -86,6 +86,22 @@ export function Header({ page, setPage }: { page: Page; setPage: (page: Page) =>
           <BookOpen size={14} />
           <span className="link-label">{state.language === 'zh' ? '了解' : 'About'}</span>
         </button>
+
+        {/* 校准工具入口 — 仅 DEV mode 可见，import.meta.env.DEV 在 production build 是 false */}
+        {/* PR/MR 标记此功能为 dev-only，不会进生产 bundle（CalibrateAnchor 顶部双重 gate） */}
+        {import.meta.env.DEV && (
+          <button
+            onClick={() => setPage('calibrate')}
+            className="header-link"
+            style={page === 'calibrate'
+              ? { backgroundColor: 'rgba(255,94,0,0.18)', borderColor: '#FF5E00', color: '#FF5E00' }
+              : { borderStyle: 'dashed', opacity: 0.7 }}
+            title="表情对齐工具 (DEV only)"
+          >
+            <Crosshair size={14} />
+            <span className="link-label">校准</span>
+          </button>
+        )}
 
         {/* X Community Link - desktop only */}
         <a

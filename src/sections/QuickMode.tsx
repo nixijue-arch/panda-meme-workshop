@@ -10,7 +10,7 @@
 // 集成方式：独立 page，不入侵编辑器内部 LeftSidebar / RightSidebar / CanvasArea
 // "进编辑器精修"按钮 dispatch ADD_ELEMENT × 3 → setPage('editor')
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useMeme } from '@/context/MemeContext';
 import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, type Material } from '@/data/materials';
 import { pickRandomText, RANDOM_TEXTS_ZH, RANDOM_TEXTS_EN } from '@/data/quickModeTexts';
@@ -56,6 +56,11 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
   });
   const [faceRotation, setFaceRotation] = useState(0);
   const [faceFlipX, setFaceFlipX] = useState(false);
+  // 防频闪：滚轮高频改 rotation 时，PandaCanvas 用 deferred 值
+  // → React 跳过中间帧，仅在用户停下时合成最终 canvas
+  // memory feedback_engineering.md '频闪用 useDeferredValue 防' SOP
+  const deferredRotation = useDeferredValue(faceRotation);
+  const deferredFlipX = useDeferredValue(faceFlipX);
   const [namePopoverOpen, setNamePopoverOpen] = useState(false);
   const [pendingFavName, setPendingFavName] = useState('');
 
@@ -241,8 +246,8 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
             pandaSrc={panda.src}
             faceSrc={face.src}
             faceOffset={panda.faceOffset}
-            rotation={faceRotation}
-            flipX={faceFlipX}
+            rotation={deferredRotation}
+            flipX={deferredFlipX}
             alt={panda.id}
             className="qm-panda-img"
             style={{ objectFit: 'contain' }}

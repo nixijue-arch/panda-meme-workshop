@@ -131,10 +131,11 @@ export interface ComposeOpts {
   rotation?: number; // degrees
   flipX?: boolean;
   size?: number; // max output dim (proportional output may be Wout=size, Hout<size 或反之)
+  faceFill?: number; // face content bbox 占 anchor 的比例，default 0.95
 }
 
 export function composeMemeCanvas(opts: ComposeOpts): HTMLCanvasElement {
-  const { panda, face, faceOffset, rotation = 0, flipX = false, size = 1024 } = opts;
+  const { panda, face, faceOffset, rotation = 0, flipX = false, size = 1024, faceFill = 0.95 } = opts;
 
   // 1. 检测 panda 实际内容 bbox（去 whitespace）
   const bbox = getContentBbox(panda);
@@ -189,8 +190,8 @@ export function composeMemeCanvas(opts: ComposeOpts): HTMLCanvasElement {
   //   a) 算 face content bbox (alpha>50 边界) — 五官实际占的区域
   //   b) scale = min(fow/contentW, foh/contentH) * FACE_FILL → 五官填满 faceOffset
   //   c) content bbox 中心代替几何中心做 drawImage 偏移 → 五官居中
-  // FACE_FILL = 0.95 留 5% margin（已有 ellipse mask 边缘平滑，比 PandaHead 0.92 紧一点）
-  const FACE_FILL = 0.95;
+  // faceFill = 0.95 默认（已有 ellipse mask 边缘平滑，比 PandaHead 0.92 紧一点）
+  // 校准工具可传不同值调五官饱满度
   const fc = document.createElement('canvas');
   fc.width = Wout;
   fc.height = Hout;
@@ -204,7 +205,7 @@ export function composeMemeCanvas(opts: ComposeOpts): HTMLCanvasElement {
   const faceBbox = getContentBbox(face);
   const fcw = Math.max(1, faceBbox[2] - faceBbox[0]); // face content 实际宽
   const fch = Math.max(1, faceBbox[3] - faceBbox[1]); // face content 实际高
-  const faceScale = Math.min(fow / fcw, foh / fch) * FACE_FILL;
+  const faceScale = Math.min(fow / fcw, foh / fch) * faceFill;
   const drawFw = FW * faceScale;
   const drawFh = FH * faceScale;
   // content center 在缩放后 PNG 坐标系里
@@ -244,6 +245,7 @@ export interface ComposeMemeArgs {
   rotation?: number;
   flipX?: boolean;
   size?: number;
+  faceFill?: number;
 }
 
 export async function composeMeme(args: ComposeMemeArgs): Promise<string> {
@@ -255,6 +257,7 @@ export async function composeMeme(args: ComposeMemeArgs): Promise<string> {
     rotation: args.rotation,
     flipX: args.flipX,
     size: args.size,
+    faceFill: args.faceFill,
   });
   return c.toDataURL('image/png');
 }
@@ -268,8 +271,14 @@ export async function composeMemeBlob(args: ComposeMemeArgs): Promise<Blob> {
     rotation: args.rotation,
     flipX: args.flipX,
     size: args.size,
+    faceFill: args.faceFill,
   });
   return new Promise<Blob>((resolve, reject) => {
     c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png');
   });
+}
+
+// 给校准工具用：直接把已加载的 image 喂进去，跳过 loadImage（同步获 native 尺寸）
+export function composeMemeCanvasSync(opts: ComposeOpts): HTMLCanvasElement {
+  return composeMemeCanvas(opts);
 }

@@ -8,10 +8,12 @@ import { Museum } from '@/sections/Museum';
 import { AboutPanda } from '@/sections/AboutPanda';
 import { QuickMode } from '@/sections/QuickMode';
 import { Collection } from '@/sections/Collection';
+import { CalibrateAnchor } from '@/sections/CalibrateAnchor';
 import { Toaster } from 'sonner';
 import './App.css';
 
-export type Page = 'quick' | 'editor' | 'collection' | 'museum' | 'about';
+// 'calibrate' 仅 DEV mode 可达 — Header 按钮 gated by import.meta.env.DEV
+export type Page = 'quick' | 'editor' | 'collection' | 'museum' | 'about' | 'calibrate';
 
 function App() {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -34,6 +36,9 @@ function App() {
           </div>
         ) : page === 'museum' ? (
           <Museum onBack={() => setPage('editor')} setPage={setPage} />
+        ) : page === 'calibrate' ? (
+          // DEV-only — 生产 tree-shake，Header 也 gate 入口防误进
+          <CalibrateAnchor onBack={() => setPage('editor')} />
         ) : (
           <AboutPanda onBack={() => setPage('editor')} />
         )}

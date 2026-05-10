@@ -14,24 +14,28 @@ interface Props {
   rotation?: number;
   flipX?: boolean;
   size?: number; // canvas resolution, default 1024 for export quality (display via CSS)
+  faceFill?: number; // face content bbox 占 anchor 的比例，校准工具用
   className?: string;
   style?: React.CSSProperties;
   alt?: string;
   draggable?: boolean;
+  onRendered?: (info: { naturalW: number; naturalH: number }) => void;
 }
 
 interface Rendered {
   key: string;
   url: string;
+  naturalW: number;
+  naturalH: number;
 }
 
 function makeKey(p: Props): string {
-  return [p.pandaSrc, p.faceSrc, p.faceOffset.x, p.faceOffset.y, p.faceOffset.w, p.faceOffset.h, p.rotation ?? 0, p.flipX ? 1 : 0, p.size ?? 1024].join('|');
+  return [p.pandaSrc, p.faceSrc, p.faceOffset.x, p.faceOffset.y, p.faceOffset.w, p.faceOffset.h, p.rotation ?? 0, p.flipX ? 1 : 0, p.size ?? 1024, p.faceFill ?? 0.95].join('|');
 }
 
 export function PandaCanvas(props: Props) {
-  const { className, style, alt, draggable = false } = props;
-  const [rendered, setRendered] = useState<Rendered>({ key: '', url: '' });
+  const { className, style, alt, draggable = false, onRendered } = props;
+  const [rendered, setRendered] = useState<Rendered>({ key: '', url: '', naturalW: 0, naturalH: 0 });
   const reqRef = useRef<number>(0);
   const targetKey = makeKey(props);
 
@@ -45,10 +49,12 @@ export function PandaCanvas(props: Props) {
       rotation: props.rotation,
       flipX: props.flipX,
       size: props.size,
+      faceFill: props.faceFill,
     })
       .then((url) => {
         if (cancelled || reqId !== reqRef.current) return;
-        setRendered({ key: targetKey, url });
+        // dataURL 生成的 img 加载后会在 onLoad 回调里报告尺寸；这里先记 url
+        setRendered({ key: targetKey, url, naturalW: 0, naturalH: 0 });
       })
       .catch((e) => {
         if (cancelled || reqId !== reqRef.current) return;
@@ -57,21 +63,24 @@ export function PandaCanvas(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [targetKey, props.pandaSrc, props.faceSrc, props.faceOffset, props.rotation, props.flipX, props.size]);
+  }, [targetKey, props.pandaSrc, props.faceSrc, props.faceOffset, props.rotation, props.flipX, props.size, props.faceFill]);
 
-  // stale = 当前输入与上次成功 render 不一致 → 半透明指示加载中
-  const stale = rendered.key !== targetKey;
-
+  // 频闪修法（user 反馈滚轮调 rotation 时频闪）：
+  // 去掉 'stale 时 opacity 0.7' 的渐变 — dataURL 是同步可用的，每次 props 变都先 dim 再渐变到 1
+  // 用户视觉上就是反复闪。新 url 直接全亮显示。仅首次加载（url 空）保留 0.4 占位
   return (
     <img
       src={rendered.url || undefined}
       alt={alt}
       draggable={draggable}
       className={className}
+      onLoad={(e) => {
+        const im = e.currentTarget;
+        if (onRendered) onRendered({ naturalW: im.naturalWidth, naturalH: im.naturalHeight });
+      }}
       style={{
         ...style,
-        opacity: !rendered.url ? 0.4 : stale ? 0.7 : 1,
-        transition: 'opacity 0.15s ease-out',
+        opacity: rendered.url ? 1 : 0.4,
       }}
     />
   );
