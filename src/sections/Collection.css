@@ -392,12 +392,3 @@
   color: #E97B7B;
 }
 .col-bar-btn-danger:hover { background: rgba(233, 123, 123, 0.15); }
-
-/* canvas 替代 img+overlay (PandaHead 三层合成方式) */
-.draft-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 4px;
-}
