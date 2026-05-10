@@ -4,8 +4,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import JSZip from 'jszip';
 import { useMeme } from '@/context/MemeContext';
-import { ALL_PANDAS, ALL_FACES, getPandaFaceOffset } from '@/data/materials';
+import { ALL_PANDAS, ALL_FACES, getPandaFaceOffset, getLivePandaFaceOffset } from '@/data/materials';
 import { useQuickFavs, type QuickFav } from '@/hooks/useQuickFavs';
+import { useLiveAnchor } from '@/hooks/useLiveAnchor';
 import { captureNode, copyImageToClipboard, downloadImage } from '@/lib/exportImage';
 import { composeMeme } from '@/lib/composeMeme';
 import { PandaCanvas } from '@/components/PandaCanvas';
@@ -27,6 +28,8 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
   const { state, dispatch, generateId } = useMeme();
   const { favs, remove, rename } = useQuickFavs();
   const lang = state.language;
+  // DEV: 校准工具改 anchor 时触发 re-render
+  useLiveAnchor();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>('all');
@@ -78,7 +81,7 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
         const composedDataUrl = await composeMeme({
           pandaSrc: panda.src,
           faceSrc: face.src,
-          faceOffset: panda.faceOffset,
+          faceOffset: getLivePandaFaceOffset(panda),
           size: 1024,
         });
         const node = document.createElement('div');
@@ -330,7 +333,7 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
         <PandaCanvas
           pandaSrc={panda.src}
           faceSrc={face.src}
-          faceOffset={panda.faceOffset}
+          faceOffset={getLivePandaFaceOffset(panda)}
           alt={panda.id}
           className="draft-panda-img"
           style={{ objectFit: 'contain' }}

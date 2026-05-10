@@ -22,20 +22,31 @@ export function readAnchorOverride(pandaId: string): AnchorOverride | undefined 
   return readAnchorOverrides()[pandaId];
 }
 
+export const ANCHOR_CHANGED_EVENT = 'pmw-anchor-changed';
+
+function notify() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(ANCHOR_CHANGED_EVENT));
+  }
+}
+
 export function saveAnchorOverride(pandaId: string, ov: Omit<AnchorOverride, 'ts'>): void {
   const all = readAnchorOverrides();
   all[pandaId] = { ...ov, ts: Date.now() };
   localStorage.setItem(KEY, JSON.stringify(all));
+  notify();
 }
 
 export function removeAnchorOverride(pandaId: string): void {
   const all = readAnchorOverrides();
   delete all[pandaId];
   localStorage.setItem(KEY, JSON.stringify(all));
+  notify();
 }
 
 export function clearAllAnchorOverrides(): void {
   localStorage.removeItem(KEY);
+  notify();
 }
 
 // 导出 TS code，可直接粘贴到 panda-manual-overrides.ts

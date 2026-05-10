@@ -395,9 +395,12 @@ function CalibrateAnchorImpl({ onBack }: CalibrateAnchorProps) {
               <li>左侧选 panda（已校准的右边有 ● 橙点）</li>
               <li>预览图上 <b>拖橙色椭圆</b> 移动 face 锚点；<b>拉 4 角</b> 缩放</li>
               <li>右侧 <b>数值框</b> 精调 x/y/w/h；<b>faceFill</b> slider 调五官饱满度</li>
-              <li>所有改动 <b>自动保存</b> 到 localStorage（仅本机预览有效）</li>
+              <li>所有改动 <b>自动保存</b> 到 localStorage（仅本机 <b>本端口</b> 同 origin 内生效）</li>
               <li>调好一批后点 <b>"导出 TS code"</b>，粘贴到 <code style={kbd}>src/data/panda-manual-overrides.ts</code> 永久生效</li>
             </ol>
+            <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(255,200,0,0.08)', border: '1px solid rgba(255,200,0,0.3)', borderRadius: 4, fontSize: 11, color: '#FFC850' }}>
+              ⚠️ <b>跨端口不同步</b>：localStorage 按 origin 隔离，<code style={kbd}>localhost:5173</code> 和 <code style={kbd}>localhost:3001</code> 是不同 origin（浏览器机制）。同 origin（同端口）内 QuickMode/Collection 切过去会立即看到校准值。永久全用户生效请走"导出 TS code"路径。
+            </div>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#fff' }}>键盘快捷键</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto 1fr', gap: '4px 16px', fontSize: 11 }}>
               <span style={kbd}>← →</span><span>anchor 平移 1px</span>

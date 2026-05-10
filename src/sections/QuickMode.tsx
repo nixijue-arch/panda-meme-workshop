@@ -12,9 +12,10 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useMeme } from '@/context/MemeContext';
-import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, type Material } from '@/data/materials';
+import { ALL_PANDAS as PANDA_HEADS, ALL_FACES as FACES, getLivePandaFaceOffset, type Material } from '@/data/materials';
 import { pickRandomText, RANDOM_TEXTS_ZH, RANDOM_TEXTS_EN } from '@/data/quickModeTexts';
 import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
+import { useLiveAnchor } from '@/hooks/useLiveAnchor';
 import { copyImageToClipboard, downloadImage } from '@/lib/exportImage';
 import { PandaCanvas } from '@/components/PandaCanvas';
 import {
@@ -43,6 +44,8 @@ interface QuickModeProps {
 export function QuickMode({ onOpenEditor }: QuickModeProps) {
   const { state, dispatch, t, generateId } = useMeme();
   const lang = state.language;
+  // DEV: 校准工具改 anchor 时触发 re-render，让预览实时显示新值
+  useLiveAnchor();
 
   const [pandaId, setPandaId] = useState<string>(() => PANDA_HEADS[0]?.id ?? '');
   const [faceId, setFaceId] = useState<string>(() => FACES[0]?.id ?? '');
@@ -245,7 +248,7 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
           <PandaCanvas
             pandaSrc={panda.src}
             faceSrc={face.src}
-            faceOffset={panda.faceOffset}
+            faceOffset={getLivePandaFaceOffset(panda)}
             rotation={deferredRotation}
             flipX={deferredFlipX}
             alt={panda.id}

@@ -154,3 +154,23 @@ PANDA_HEADS.forEach(p => {
     pandaOffsetMap[p.id] = manual;
   }
 });
+
+// ===== DEV-only：实时从 localStorage 读校准工具 override =====
+// 校准工具改了 localStorage 后 dispatch 'pmw-anchor-changed' event；
+// QuickMode/Collection 用 useLivePandaFaceOffset hook 监听，自动重渲染拿最新值。
+// 注意：localStorage 按 origin 隔离，5173 和 3001 是不同 origin 不同步（浏览器机制不可绕）。
+// 永久全用户生效仍需"导出 TS code"粘到 panda-manual-overrides.ts。
+//
+// 函数式查询，不在模块顶层 mutate ALL_PANDAS（mutate 后 React 不会自动 re-render）
+export function getLivePandaFaceOffset(panda: Material): { x: number; y: number; w: number; h: number } {
+  if (import.meta.env.DEV) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('pmw-anchor-overrides-v1') || '{}');
+      const ov = stored[panda.id];
+      if (ov?.faceOffset) return ov.faceOffset;
+    } catch {
+      /* ignore */
+    }
+  }
+  return panda.faceOffset;
+}
