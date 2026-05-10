@@ -13,6 +13,11 @@ export interface QuickFav {
   fontFamily: string;
   ts: number;                 // unix ms
   name?: string;              // 用户改名（可空）
+  // v2: 用户上传/智能提取的素材没在 ALL_PANDAS/ALL_FACES 池里
+  // 存 src dataURL 防 Collection 显示"素材丢失"
+  pandaSrc?: string;
+  faceSrc?: string;
+  pandaFaceOffset?: { x: number; y: number; w: number; h: number };
 }
 
 export type QuickFavMap = Record<string, QuickFav>;

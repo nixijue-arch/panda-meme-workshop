@@ -252,17 +252,18 @@ export function QuickMode({ onOpenEditor }: QuickModeProps) {
       {/* Preview — 滚轮在这里微调 face rotation */}
       <div className="quickmode-preview-wrap" ref={previewWrapRef}>
         <div ref={previewRef} className="quickmode-preview" style={{ fontFamily: fontStack }}>
-          <PandaCanvas
-            pandaSrc={panda.src}
-            pandaId={panda.id}
-            faceSrc={face.src}
-            faceOffset={getLivePandaFaceOffset(panda)}
-            rotation={deferredRotation}
-            flipX={deferredFlipX}
-            alt={panda.id}
-            className="qm-panda-img"
-            style={{ objectFit: 'contain' }}
-          />
+          <div className="qm-panda-frame">
+            <PandaCanvas
+              pandaSrc={panda.src}
+              pandaId={panda.id}
+              faceSrc={face.src}
+              faceOffset={getLivePandaFaceOffset(panda)}
+              rotation={deferredRotation}
+              flipX={deferredFlipX}
+              alt={panda.id}
+              className="qm-panda-img"
+            />
+          </div>
           {text && (
             <div className="qm-caption" style={{ fontFamily: fontStack }}>
               {text}

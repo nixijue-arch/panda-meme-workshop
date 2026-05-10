@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { MemeProvider } from '@/context/MemeContext';
 import { Header } from '@/sections/Header';
 import { LeftSidebar } from '@/sections/LeftSidebar';
@@ -8,11 +8,16 @@ import { Museum } from '@/sections/Museum';
 import { AboutPanda } from '@/sections/AboutPanda';
 import { QuickMode } from '@/sections/QuickMode';
 import { Collection } from '@/sections/Collection';
-import { CalibrateAnchor } from '@/sections/CalibrateAnchor';
 import { Toaster } from 'sonner';
 import './App.css';
 
-// 'calibrate' 仅 DEV mode 可达 — Header 按钮 gated by import.meta.env.DEV
+// 'calibrate' 仅 DEV mode 可达 — 用 React.lazy + DEV conditional
+// 让 production build 完全 tree-shake 掉 CalibrateAnchor + 所有 anchorOverrides 代码
+// 之前用 static import + DEV 条件渲染，CalibrateAnchor module 还会进 prod bundle
+const CalibrateAnchorLazy = import.meta.env.DEV
+  ? lazy(() => import('@/sections/CalibrateAnchor').then((m) => ({ default: m.CalibrateAnchor })))
+  : null;
+
 export type Page = 'quick' | 'editor' | 'collection' | 'museum' | 'about' | 'calibrate';
 
 function App() {
@@ -46,9 +51,10 @@ function App() {
           </div>
         ) : page === 'museum' ? (
           <Museum onBack={() => setPage('editor')} setPage={setPage} />
-        ) : page === 'calibrate' ? (
-          // DEV-only — 生产 tree-shake，Header 也 gate 入口防误进
-          <CalibrateAnchor onBack={() => setPage('editor')} />
+        ) : page === 'calibrate' && CalibrateAnchorLazy ? (
+          <Suspense fallback={<div style={{ flex: 1, padding: 32, color: '#888' }}>加载校准工具...</div>}>
+            <CalibrateAnchorLazy onBack={() => setPage('editor')} />
+          </Suspense>
         ) : (
           <AboutPanda onBack={() => setPage('editor')} />
         )}

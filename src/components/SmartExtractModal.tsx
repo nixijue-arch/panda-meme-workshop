@@ -786,16 +786,24 @@ export function SmartExtractModal({ isOpen, onClose, onConfirm, language }: Prop
 
         {/* Upload zone */}
         {items.length === 0 && !loadingModel && (
-          <label className="block border-2 border-dashed rounded-xl py-10 px-6 text-center cursor-pointer"
-            style={{ borderColor: '#2a2a2a', background: 'rgba(16,185,129,0.05)' }}
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); const fs = Array.from(e.dataTransfer.files).filter(x => /^image\//.test(x.type)); if (fs.length) handleFiles(fs); }}>
-            <Upload size={28} className="mx-auto mb-2" style={{ color: '#10B981' }} />
-            <div className="text-white font-semibold text-sm">{t('smartExtractUpload')}</div>
-            <div className="text-[11px] mt-1" style={{ color: '#888' }}>JPG / PNG / WebP · 拖拽 / 点击 · 可批量</div>
-            <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple className="hidden"
-              onChange={e => { const fs = Array.from(e.target.files || []); if (fs.length) handleFiles(fs); (e.target as HTMLInputElement).value = ''; }} />
-          </label>
+          <>
+            <label className="block border-2 border-dashed rounded-xl py-10 px-6 text-center cursor-pointer"
+              style={{ borderColor: '#2a2a2a', background: 'rgba(16,185,129,0.05)' }}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const fs = Array.from(e.dataTransfer.files).filter(x => /^image\//.test(x.type)); if (fs.length) handleFiles(fs); }}>
+              <Upload size={28} className="mx-auto mb-2" style={{ color: '#10B981' }} />
+              <div className="text-white font-semibold text-sm">{t('smartExtractUpload')}</div>
+              <div className="text-[11px] mt-1" style={{ color: '#888' }}>JPG / PNG / WebP · 拖拽 / 点击 · 可批量</div>
+              <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple className="hidden"
+                onChange={e => { const fs = Array.from(e.target.files || []); if (fs.length) handleFiles(fs); (e.target as HTMLInputElement).value = ''; }} />
+            </label>
+            <div className="mt-3 p-3 rounded-lg text-[11px] leading-relaxed" style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#aaa' }}>
+              <div className="font-semibold mb-1" style={{ color: '#10B981' }}>📌 几个小提醒</div>
+              <div>· 尽量用 <b>正脸</b> 照片，效果最佳（侧脸 / 戴口罩可能识别不准）</div>
+              <div>· 自动识别后可在原图上 <b>拖曲线</b> 改提取范围；<b>双击点</b> 删除多余控制点；任意空白处单击新增</div>
+              <div>· 默认预设已适配大多数照片，效果不理想时再展开高级选项手动微调</div>
+            </div>
+          </>
         )}
 
         {/* Main preview area */}
@@ -804,17 +812,17 @@ export function SmartExtractModal({ isOpen, onClose, onConfirm, language }: Prop
             <div className={`grid gap-3 ${advanced && showPandaPreview ? 'md:grid-cols-3' : 'md:grid-cols-2'} grid-cols-1`}>
               <div>
                 <div className="flex items-center justify-between text-[11px] mb-1" style={{ color: '#aaa' }}>
-                  <span>原图 · {advanced ? '拖曲线 / 双击删点' : '已自动识别'}</span>
-                  {advanced && <button onClick={resetHandles} className="text-[10px]" style={{ color: '#10B981' }}>重置 mask</button>}
+                  <span>原图 · 拖曲线 / 双击删点 改提取范围</span>
+                  <button onClick={resetHandles} className="text-[10px]" style={{ color: '#10B981' }}>重置 mask</button>
                 </div>
                 <div
                   className="rounded-lg overflow-hidden aspect-square flex items-center justify-center select-none"
-                  style={{ background: '#0a0a0a', cursor: advanced ? (draggingHandle >= 0 ? 'grabbing' : 'grab') : 'default', touchAction: 'none' }}
-                  onPointerDown={advanced ? onOriginalPointerDown : undefined}
-                  onPointerMove={advanced ? onOriginalPointerMove : undefined}
-                  onPointerUp={advanced ? onOriginalPointerUp : undefined}
-                  onPointerCancel={advanced ? onOriginalPointerUp : undefined}
-                  onDoubleClick={advanced ? onOriginalDblClick : undefined}
+                  style={{ background: '#0a0a0a', cursor: draggingHandle >= 0 ? 'grabbing' : 'grab', touchAction: 'none' }}
+                  onPointerDown={onOriginalPointerDown}
+                  onPointerMove={onOriginalPointerMove}
+                  onPointerUp={onOriginalPointerUp}
+                  onPointerCancel={onOriginalPointerUp}
+                  onDoubleClick={onOriginalDblClick}
                 >
                   <canvas ref={originalCanvasRef} className="max-w-full max-h-full" />
                 </div>

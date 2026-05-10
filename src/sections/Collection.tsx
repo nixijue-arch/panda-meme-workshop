@@ -12,7 +12,7 @@ import { composeMeme, calcEditorFaceLayout } from '@/lib/composeMeme';
 import { PandaCanvas } from '@/components/PandaCanvas';
 import {
   FolderOpen, Copy, Download, Trash2, ArrowRight, Sparkles, Edit2, Check, X,
-  Package, CheckSquare, Square,
+  Package,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import './Collection.css';
@@ -278,8 +278,11 @@ interface DraftCardProps {
 }
 
 function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, onSendToEditor }: DraftCardProps) {
-  const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
-  const face = ALL_FACES.find((f) => f.id === fav.faceId);
+  // 优先用 fav 自带的 src（上传/智能提取素材），fallback 到 ALL_* 池
+  const pandaInPool = ALL_PANDAS.find((p) => p.id === fav.pandaId);
+  const faceInPool = ALL_FACES.find((f) => f.id === fav.faceId);
+  const panda = pandaInPool ?? (fav.pandaSrc ? { id: fav.pandaId, src: fav.pandaSrc, labelCn: '上传', labelEn: 'Upload', tags: [], tagsEn: [], faceOffset: fav.pandaFaceOffset ?? { x: 100, y: 70, w: 250, h: 250 } } : null);
+  const face = faceInPool ?? (fav.faceSrc ? { id: fav.faceId, src: fav.faceSrc, labelCn: '上传', labelEn: 'Upload', tags: [], tagsEn: [], faceOffset: { x: 0, y: 0, w: 0, h: 0 } } : null);
   const previewRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState(fav.name || fav.text || '');
@@ -290,10 +293,26 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
     return ((h % 7) - 3) * 0.8;
   }, [fav.id]);
 
+  // broken card：素材丢了 — 加删除按钮 + 选择框（之前 user 删不掉）
   if (!panda || !face) {
     return (
-      <div className="draft-card draft-card-broken" style={{ transform: `rotate(${tilt}deg)` }}>
+      <div
+        className={'draft-card draft-card-broken ' + (isSelected ? 'draft-card-selected' : '')}
+        style={{ transform: `rotate(${tilt}deg)`, cursor: 'pointer', position: 'relative' }}
+        onClick={onToggleSelect}
+      >
         <div className="draft-broken-msg">{lang === 'zh' ? '素材丢失' : 'Missing'}</div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="draft-icon-btn draft-icon-btn-danger"
+          title={lang === 'zh' ? '删除' : 'Delete'}
+          style={{ position: 'absolute', top: 8, right: 8, zIndex: 5 }}
+        >
+          <Trash2 size={14} />
+        </button>
+        <div style={{ position: 'absolute', bottom: 8, left: 8, fontSize: 10, color: '#888' }}>
+          {fav.name || fav.text || lang === 'zh' ? `${fav.pandaId} + ${fav.faceId}` : `${fav.pandaId} + ${fav.faceId}`}
+        </div>
       </div>
     );
   }
@@ -326,31 +345,28 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
   };
 
   return (
-    <div className={'draft-card ' + (isSelected ? 'draft-card-selected' : '')} style={{ transform: `rotate(${tilt}deg)` }}>
-      {/* 选择框 */}
-      <button
-        className={'draft-select-toggle ' + (isSelected ? 'draft-select-toggle-on' : '')}
-        onClick={onToggleSelect}
-        title={lang === 'zh' ? '选择' : 'Select'}
-      >
-        {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
-      </button>
-
+    <div
+      className={'draft-card ' + (isSelected ? 'draft-card-selected' : '')}
+      style={{ transform: `rotate(${tilt}deg)`, cursor: 'pointer' }}
+      onClick={onToggleSelect}
+      title={lang === 'zh' ? '点击勾选 / 取消' : 'Click to (un)select'}
+    >
       <div ref={previewRef} className="draft-preview">
-        <PandaCanvas
-          pandaSrc={panda.src}
-          pandaId={panda.id}
-          faceSrc={face.src}
-          faceOffset={getLivePandaFaceOffset(panda)}
-          alt={panda.id}
-          className="draft-panda-img"
-          style={{ objectFit: 'contain' }}
-          size={512}
-        />
+        <div className="draft-panda-frame">
+          <PandaCanvas
+            pandaSrc={panda.src}
+            pandaId={panda.id}
+            faceSrc={face.src}
+            faceOffset={getLivePandaFaceOffset(panda)}
+            alt={panda.id}
+            className="draft-panda-img"
+            size={512}
+          />
+        </div>
         {fav.text && <div className="draft-caption">{fav.text}</div>}
       </div>
 
-      <div className="draft-meta">
+      <div className="draft-meta" onClick={(e) => e.stopPropagation()}>
         {editing ? (
           <div className="draft-rename-row">
             <input
@@ -363,31 +379,32 @@ function DraftCard({ fav, lang, isSelected, onToggleSelect, onDelete, onRename, 
               }}
               placeholder={lang === 'zh' ? '起个名字...' : 'Name it...'}
               className="draft-rename-input"
+              onClick={(e) => e.stopPropagation()}
             />
-            <button onClick={submitRename} className="draft-rename-ok"><Check size={12} /></button>
-            <button onClick={() => setEditing(false)} className="draft-rename-cancel"><X size={12} /></button>
+            <button onClick={(e) => { e.stopPropagation(); submitRename(); }} className="draft-rename-ok"><Check size={12} /></button>
+            <button onClick={(e) => { e.stopPropagation(); setEditing(false); }} className="draft-rename-cancel"><X size={12} /></button>
           </div>
         ) : (
           <div className="draft-name-row">
             <span className="draft-name">{fav.name || fav.text || (lang === 'zh' ? '未命名' : 'Untitled')}</span>
-            <button onClick={() => setEditing(true)} className="draft-icon-btn" title={lang === 'zh' ? '改名' : 'Rename'}>
+            <button onClick={(e) => { e.stopPropagation(); setEditing(true); }} className="draft-icon-btn" title={lang === 'zh' ? '改名' : 'Rename'}>
               <Edit2 size={11} />
             </button>
           </div>
         )}
       </div>
 
-      <div className="draft-actions">
-        <button onClick={onCopy} className="draft-icon-btn" title={lang === 'zh' ? '复制' : 'Copy'}>
+      <div className="draft-actions" onClick={(e) => e.stopPropagation()}>
+        <button onClick={(e) => { e.stopPropagation(); onCopy(); }} className="draft-icon-btn" title={lang === 'zh' ? '复制' : 'Copy'}>
           <Copy size={13} />
         </button>
-        <button onClick={onDownload} className="draft-icon-btn" title={lang === 'zh' ? '下载' : 'Download'}>
+        <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="draft-icon-btn" title={lang === 'zh' ? '下载' : 'Download'}>
           <Download size={13} />
         </button>
-        <button onClick={onSendToEditor} className="draft-icon-btn draft-icon-btn-accent" title={lang === 'zh' ? '进编辑器精修' : 'Open in Editor'}>
+        <button onClick={(e) => { e.stopPropagation(); onSendToEditor(); }} className="draft-icon-btn draft-icon-btn-accent" title={lang === 'zh' ? '进编辑器精修' : 'Open in Editor'}>
           <ArrowRight size={13} />
         </button>
-        <button onClick={onDelete} className="draft-icon-btn draft-icon-btn-danger" title={lang === 'zh' ? '删除' : 'Delete'}>
+        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="draft-icon-btn draft-icon-btn-danger" title={lang === 'zh' ? '删除' : 'Delete'}>
           <Trash2 size={13} />
         </button>
       </div>

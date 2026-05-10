@@ -41,6 +41,7 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
   const { toggle: toggleFav } = useQuickFavs();
 
   // 保存当前编辑器内容为草图（自动从 elements 反推 panda + face + text）
+  // 上传/智能提取的素材 src 是 dataURL 不在 ALL_*池里 — 存 src 防"素材丢失"
   const handleSaveDraft = useCallback(() => {
     const pandaEl = state.elements.find(isPanda) as ImageElement | undefined;
     const faceEl = state.elements.find(isFace) as ImageElement | undefined;
@@ -54,7 +55,17 @@ export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDiv
     const text = textEl?.text ?? '';
     const fontFamily = textEl?.fontFamily ?? 'sans-serif';
     const id = makeFavKey(pandaId, faceId, text, fontFamily);
-    toggleFav({ id, pandaId, faceId, text, fontFamily });
+    // 检测上传/抠图素材（id 前缀），存 src 进 fav
+    const isCustomPanda = pandaId.startsWith('upload-panda-');
+    const isCustomFace = faceId.startsWith('upload-face-') || faceId.startsWith('custom-face-');
+    const fav: Parameters<typeof toggleFav>[0] = { id, pandaId, faceId, text, fontFamily };
+    if (isCustomPanda) {
+      fav.pandaSrc = pandaEl.src;
+      // 上传 panda 没预设 anchor — 用 face 元素当前位置反推 350-coord
+      fav.pandaFaceOffset = { x: faceEl.x - pandaEl.x, y: faceEl.y - pandaEl.y, w: faceEl.width, h: faceEl.height };
+    }
+    if (isCustomFace) fav.faceSrc = faceEl.src;
+    toggleFav(fav);
     toast.success(state.language === 'zh' ? '已存到草图' : 'Saved to drafts');
   }, [state.elements, state.language, toggleFav]);
 
