@@ -82,10 +82,16 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
           size: 1024,
         });
         const node = document.createElement('div');
-        node.style.cssText = 'position:absolute;width:400px;height:480px;background:#fff;left:-99999px;top:0;';
+        // v4: 与预览/草图一致的 flex 列布局 — caption 紧贴 panda 下方，间距等比例
+        node.style.cssText =
+          'position:absolute;left:-99999px;top:0;width:400px;background:#fff;display:flex;flex-direction:column;align-items:center;padding:25px 25px 30px;';
         node.innerHTML = `
-          <img src="${composedDataUrl}" style="position:absolute;left:25px;top:25px;width:350px;height:350px;object-fit:contain;" />
-          ${fav.text ? `<div style="position:absolute;left:0;right:0;bottom:18px;text-align:center;font-size:32px;font-weight:700;color:#000;padding:0 16px;line-height:1.2;font-family:${fav.fontFamily || 'sans-serif'};">${fav.text}</div>` : ''}
+          <img src="${composedDataUrl}" style="display:block;max-width:350px;max-height:350px;object-fit:contain;" />
+          ${
+            fav.text
+              ? `<div style="margin-top:22px;width:100%;max-width:360px;text-align:center;font-size:32px;font-weight:700;color:#000;padding:0 16px;line-height:1.2;word-break:break-word;font-family:${fav.fontFamily || 'sans-serif'};">${fav.text}</div>`
+              : ''
+          }
         `;
         container.appendChild(node);
         await new Promise((r) => setTimeout(r, 80)); // data URL 已就绪，仅等 layout

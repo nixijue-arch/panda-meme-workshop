@@ -371,7 +371,6 @@ export function SmartExtractModal({ isOpen, onClose, onConfirm, language }: Prop
     onClose();
   };
 
-  console.log('[SmartExtractModal] render, isOpen=', isOpen);
   if (!isOpen) return null;
 
   return (

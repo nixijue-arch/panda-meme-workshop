@@ -39,33 +39,30 @@
   margin: 16px 0 18px;
 }
 .quickmode-preview {
+  /* v4: flex 列布局 — caption 紧贴 panda 下方，间距 = panda 宽度的 ~6%
+     之前 absolute height:480 + caption bottom:18 → panda 矮时 caption 离很远 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 400px;
-  height: 480px;
-  position: relative;
+  min-height: 420px;
+  padding: 25px 25px 30px;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
-  overflow: hidden;
 }
 .quickmode-preview .qm-panda-img {
-  position: absolute;
-  left: 25px;
-  top: 25px;
-  width: 350px;
-  height: 350px;
-  object-fit: contain;
-  user-select: none;
-}
-.quickmode-preview .qm-face-img {
-  position: absolute;
+  display: block;
+  max-width: 350px;
+  max-height: 350px;
   object-fit: contain;
   user-select: none;
 }
 .quickmode-preview .qm-caption {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 18px;
+  margin-top: 22px;
+  width: 100%;
+  max-width: 360px;
   text-align: center;
   font-size: 32px;
   font-weight: 700;
@@ -304,13 +301,17 @@
   }
   .quickmode-preview {
     width: calc(100vw - 56px);
-    height: calc((100vw - 56px) * 1.2);
     max-width: 400px;
-    max-height: 480px;
+    min-height: 0;
+    padding: 18px 18px 22px;
   }
-  .quickmode-preview .qm-panda-img,
-  .quickmode-preview .qm-face-img {
-    transform-origin: top left;
+  .quickmode-preview .qm-panda-img {
+    max-width: 100%;
+    max-height: calc(100vw - 92px);
+  }
+  .quickmode-preview .qm-caption {
+    margin-top: 16px;
+    font-size: clamp(22px, 6vw, 28px);
   }
   .qm-rail-item {
     width: 56px;
