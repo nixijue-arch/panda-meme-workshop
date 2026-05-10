@@ -124,10 +124,19 @@ export function Collection({ onOpenQuick, onOpenEditor }: CollectionProps) {
   // 进编辑器精修单张 — 用 calcEditorFaceLayout 让 face 元素位置/大小跟草图卡片视觉一致
   // (之前直接用 350-coord faceOffset 当 face 元素 x/y/w/h，face PNG 含透明 padding 视觉位移)
   const onSendToEditor = useCallback(async (fav: QuickFav) => {
-    const panda = ALL_PANDAS.find((p) => p.id === fav.pandaId);
-    const face = ALL_FACES.find((f) => f.id === fav.faceId);
+    // 优先用 fav 自带 src（上传/智能提取素材），fallback 到 ALL_* 池 — 跟 DraftCard 同样逻辑
+    const pandaInPool = ALL_PANDAS.find((p) => p.id === fav.pandaId);
+    const faceInPool = ALL_FACES.find((f) => f.id === fav.faceId);
+    const panda = pandaInPool
+      ?? (fav.pandaSrc
+        ? { id: fav.pandaId, src: fav.pandaSrc, labelCn: '上传', labelEn: 'Upload', tags: [], tagsEn: [], faceOffset: fav.pandaFaceOffset ?? { x: 100, y: 70, w: 250, h: 250 } }
+        : null);
+    const face = faceInPool
+      ?? (fav.faceSrc
+        ? { id: fav.faceId, src: fav.faceSrc, labelCn: '上传', labelEn: 'Upload', tags: [], tagsEn: [], faceOffset: { x: 0, y: 0, w: 0, h: 0 } }
+        : null);
     if (!panda || !face) {
-      toast.error(lang === 'zh' ? '素材丢失' : 'Material missing');
+      toast.error(lang === 'zh' ? '素材丢失（旧草图无 src 数据，需重新存一次）' : 'Material missing (old draft, please re-save)');
       return;
     }
     // 用 live faceOffset (含校准工具改动) + 算 face 元素的实际显示位置

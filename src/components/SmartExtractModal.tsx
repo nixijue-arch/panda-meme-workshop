@@ -346,20 +346,10 @@ function processFace(image: HTMLImageElement, maskHandles: Point[], landmarks: a
     ctx.putImageData(orig, 0, 0);
   }
 
-  // 白底
-  const finalData = ctx.getImageData(0, 0, out, out);
-  const fd = finalData.data;
-  for (let i = 0; i < fd.length; i += 4) {
-    const a = fd[i + 3];
-    if (a < 255) {
-      const t = a / 255;
-      fd[i] = fd[i] * t + 255 * (1 - t);
-      fd[i + 1] = fd[i + 1] * t + 255 * (1 - t);
-      fd[i + 2] = fd[i + 2] * t + 255 * (1 - t);
-      fd[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(finalData, 0, 0);
+  // 不再 fillUnderneath 白底 — 输出透明 PNG（face 椭圆外保持 alpha=0）
+  // 之前 fillUnderneath 把 polygon 外强制填白 → 套到 panda 头出现白色矩形
+  // 用户希望 face 周围全透明，让 panda 黑廓自然显示
+  // 副作用：trimDarkBorder 后边缘半透明像素直接显示为半透明（在 panda 白头上几乎看不到差别）
   return canvas;
 }
 
