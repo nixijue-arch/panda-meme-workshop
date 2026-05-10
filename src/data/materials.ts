@@ -144,10 +144,12 @@ PANDA_HEADS.forEach(p => {
   }
 });
 
-// ===== 手动校准 — 自动算法对 11 个 shell 把 face 锚到了 body 而不是 head =====
+// ===== 手动校准 — 用户用 CalibrateAnchor 工具肉眼校准 70 个 panda =====
 // 优先级最高：肉眼校准 > 自动 align > 默认
+// **重要**: 必须迭代 [PANDA_HEADS, PANDAHEAD_PANDAS] 全部 70 个，不能只迭代 PANDA_HEADS
+// 之前只迭代 PANDA_HEADS 导致 46 个 panda-ph-* 校准值不生效
 import { PANDA_MANUAL_OVERRIDES } from './panda-manual-overrides';
-PANDA_HEADS.forEach(p => {
+[...PANDA_HEADS, ...PANDAHEAD_PANDAS].forEach((p) => {
   const manual = PANDA_MANUAL_OVERRIDES[p.id];
   if (manual) {
     p.faceOffset = manual;
