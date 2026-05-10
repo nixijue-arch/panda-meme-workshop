@@ -143,3 +143,14 @@ PANDA_HEADS.forEach(p => {
     pandaOffsetMap[p.id] = override;
   }
 });
+
+// ===== 手动校准 — 自动算法对 11 个 shell 把 face 锚到了 body 而不是 head =====
+// 优先级最高：肉眼校准 > 自动 align > 默认
+import { PANDA_MANUAL_OVERRIDES } from './panda-manual-overrides';
+PANDA_HEADS.forEach(p => {
+  const manual = PANDA_MANUAL_OVERRIDES[p.id];
+  if (manual) {
+    p.faceOffset = manual;
+    pandaOffsetMap[p.id] = manual;
+  }
+});
