@@ -4,7 +4,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { ImageElement, TextElement, MemeElement } from '@/context/MemeContext';
 import { Download, Trash2, Shuffle, Image, MessageCircle, Sparkles, Settings2, Upload, X, ChevronUp, Camera, Type, AlignLeft, AlignCenter, AlignRight, Bold, Heart } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import { PANDA_HEADS, FACES, getPandaFaceOffset } from '@/data/materials';
+import { PANDA_HEADS, FACES, ALL_PANDAS, ALL_FACES, getPandaFaceOffset } from '@/data/materials';
 import { PhotoCropModal } from '@/components/PhotoCropModal';
 import { SmartExtractModal } from '@/components/SmartExtractModal';
 import { useQuickFavs, makeFavKey } from '@/hooks/useQuickFavs';
@@ -17,13 +17,15 @@ const EN_TEXTS = ['V me 50 plz','I quit!','Really?','You sus','No cap fr fr','I 
 function isPanda(e: MemeElement): boolean {
   if (e.type !== 'image') return false;
   const name = (e as ImageElement).name;
-  return PANDA_HEADS.some(p => p.id === name) || name.startsWith('upload-panda-');
+  // 用 ALL_PANDAS 而不是 PANDA_HEADS — 后者只有 24 个原生，缺 46 个 panda-ph-XXX
+  return ALL_PANDAS.some(p => p.id === name) || name.startsWith('upload-panda-');
 }
 
 function isFace(e: MemeElement): boolean {
   if (e.type !== 'image') return false;
   const name = (e as ImageElement).name;
-  return FACES.some(f => f.id === name) || name.startsWith('upload-face-') || name.startsWith('custom-face-');
+  // 用 ALL_FACES 而不是 FACES — 后者只有 67 个原生，缺 65 个 face-ph-XXX
+  return ALL_FACES.some(f => f.id === name) || name.startsWith('upload-face-') || name.startsWith('custom-face-');
 }
 
 export function RightSidebar({ canvasRef }: { canvasRef: React.RefObject<HTMLDivElement | null> }) {
